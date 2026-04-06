@@ -1,0 +1,106 @@
+{% extends "base/base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4 text-center">Bem-vindo ao Dashboard</h1>
+
+    <!-- Linha 1: Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Total de Navios</h5>
+                    <p class="display-5">{{ total_navios }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Navios (últimos 30 dias)</h5>
+                    <p class="display-5">{{ total_navios_30d }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Linha 2: Lista + Gráfico -->
+    <div class="row">
+        <!-- Últimos navios -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Últimos 5 Navios Cadastrados</h5>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Armador</th>
+                                <th>Data (ETA)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for navio in ultimos_navios %}
+                            <tr>
+                                <td>{{ navio.navio }}</td>
+                                <td>{{ navio.armador }}</td>
+                                <td>{{ navio.eta|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3">Nenhum navio cadastrado ainda.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Materiais por Tipo (últimos 30 dias)</h5>
+                    <canvas id="graficoMateriais" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!--
+    <h4>Navios Cargo (Praticagem)</h4>
+    <ul class="list-group">
+        {% for n in navios_praticagem %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>
+                <strong>{{ n.navio }}</strong> ({{ n.tipo_navio }})
+            </span>
+            <small>{{ n.data }} {{ n.hora }}</small>
+        </li>
+        {% empty %}
+        <li class="list-group-item">Nenhum navio encontrado.</li>
+        {% endfor %}
+    </ul>
+    -->
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('graficoMateriais').getContext('2d');
+    const grafico = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: {{ grafico_labels| safe }},
+    datasets: [{
+        label: 'Quantidade',
+        data: {{ grafico_values| safe }},
+        borderWidth: 1
+            }]
+        }
+    });
+</script>
+{% endblock %}

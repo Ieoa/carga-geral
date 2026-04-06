@@ -1,0 +1,257 @@
+{% extends "base/base_dashboard.html" %}
+{% load static %}
+
+{% block extra_css %}
+<!-- Adicione aqui apenas os estilos que complementam ou sobrescrevem o Bootstrap -->
+<style>
+    .card {
+        /* Sombra sutil e bordas arredondadas são ótimas práticas */
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+        border: none;
+        border-radius: 0.75rem;
+        /* 12px */
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+        /* Um fundo sólido pode ser mais limpo que gradiente */
+        background-color: #343a40;
+        /* Cor escura do Bootstrap */
+        color: white;
+        font-weight: 600;
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
+    }
+
+    /* Estilo para o campo de upload de arquivos */
+    .file-upload-wrapper {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+    }
+
+    .file-upload-wrapper input[type=file] {
+        font-size: 100px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    /* Animação de entrada para os cards */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .card {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+
+            <header class="mb-4 text-center">
+                <h1 class="h2 fw-bold">Cadastro de Novo Navio</h1>
+                <p class="text-muted">Preencha as informações abaixo para registrar um novo navio no sistema.</p>
+            </header>
+
+            <!-- Exibição de Mensagens do Django -->
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} d-flex align-items-center alert-dismissible fade show"
+                role="alert">
+                <i
+                    class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% else %}bi-check-circle-fill{% endif %} flex-shrink-0 me-2"></i>
+                <div>{{ message }}</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" id="ship-registration-form" novalidate>
+                {% csrf_token %}
+
+                <!-- Seção 1: Dados do Navio (VERSÃO FINAL CORRIGIDA) -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex align-items-center text-white" style="background-color: #3498db;">
+                        <i class="bi bi-clipboard-data me-2"></i> Dados Principais do Navio
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {% for field in navio_form %}
+                            <div class="col-md-6">
+
+                                <!-- ✅ PASSO 2: LÓGICA PARA SEPARAR OS TIPOS DE CAMPO -->
+                                {% if field.widget_type == 'datetime' or field.widget_type == 'time' %}
+                                <!-- Layout normal para campos de Data e Hora -->
+                                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                {{ field }}
+                                {% else %}
+                                <!-- Layout com Floating Label para os outros campos -->
+                                <div class="form-floating">
+                                    {{ field }}
+                                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                </div>
+                                {% endif %}
+
+                                <!-- Exibição de ajuda e erros (funciona para ambos os layouts) -->
+                                {% if field.help_text %}<small class="form-text text-muted ms-1">{{ field.help_text
+                                    }}</small>{% endif %}
+                                {% if field.errors %}<div class="text-danger small mt-1 ms-1">{{ field.errors|striptags
+                                    }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Seção 2: Mídias (Fotos e Vídeos) -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex align-items-center text-white" style="background-color: #3498db;">
+                        <i class="bi bi-images me-2"></i> Fotos e Vídeos
+                    </div>
+                    <div class="card-body p-4">
+                        <div id="midias-container">
+                            <!-- O primeiro item de mídia é adicionado aqui -->
+                        </div>
+                        <button type="button" class="btn btn-outline-primary mt-3" onclick="addMediaInput()">
+                            <i class="bi bi-plus-circle me-2"></i>Adicionar Mídia
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seção 3: Documentos PDF -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex align-items-center text-white" style="background-color: #3498db;">
+                        <i class="bi bi-file-earmark-pdf me-2"></i> Documentos (PDF)
+                    </div>
+                    <div class="card-body p-4">
+                        <div id="pdf-container">
+                            <!-- O primeiro item de PDF é adicionado aqui -->
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary mt-3" onclick="addPdfInput()">
+                            <i class="bi bi-plus-circle me-2"></i>Adicionar Documento
+                        </button>
+                        <div id="pdf-preview" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg me-1"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check2-circle me-2"></i> Salvar Navio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- O seu Modal de Sucesso continua perfeito, não precisa de alterações -->
+<div class="modal fade" id="sucessoModal" tabindex="-1" aria-labelledby="sucessoModalLabel" aria-hidden="true">
+    <!-- ... seu código do modal aqui ... -->
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Função para criar um novo bloco de upload de mídia
+        window.addMediaInput = function () {
+            const container = document.getElementById("midias-container");
+            const index = container.children.length;
+            const template = `
+            <div class="border rounded p-3 mb-3 position-relative">
+                <button type="button" class="btn-close position-absolute top-0 end-0 p-2" aria-label="Remover" onclick="this.parentElement.remove()"></button>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="id_midia_${index}" class="form-label">Arquivo de Mídia</label>
+                        <input type="file" name="midias" id="id_midia_${index}" accept="image/*,video/*" class="form-control" onchange="previewFile(this)">
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="text" name="tipo_peca" id="id_tipo_peca_${index}" class="form-control" placeholder="Ex: Foto da proa">
+                            <label for="id_tipo_peca_${index}">Tipo/Descrição da Peça</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-floating">
+                            <textarea name="observacoes" id="id_obs_${index}" class="form-control" placeholder="Observação" style="height: 80px"></textarea>
+                            <label for="id_obs_${index}">Observações</label>
+                        </div>
+                    </div>
+                    <div class="col-12 preview-container mt-2" style="min-height: 50px;"></div>
+                </div>
+            </div>
+        `;
+            container.insertAdjacentHTML('beforeend', template);
+        };
+
+        // Função para criar um novo bloco de upload de PDF
+        window.addPdfInput = function () {
+            const container = document.getElementById("pdf-container");
+            const index = container.children.length;
+            const template = `
+            <div class="input-group mb-3">
+                <input type="file" name="arquivos" id="id_pdf_${index}" accept="application/pdf" class="form-control">
+                <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="bi bi-trash"></i></button>
+            </div>
+        `;
+            container.insertAdjacentHTML('beforeend', template);
+        };
+
+        // Função de preview (otimizada)
+        window.previewFile = function (input) {
+            const previewContainer = input.closest('.border').querySelector('.preview-container');
+            previewContainer.innerHTML = '';
+            const file = input.files[0];
+            if (!file) return;
+
+            let element;
+            if (file.type.startsWith("image/")) {
+                element = document.createElement("img");
+                element.classList.add("img-fluid", "rounded");
+                element.style.maxHeight = "150px";
+            } else if (file.type.startsWith("video/")) {
+                element = document.createElement("video");
+                element.controls = true;
+                element.classList.add("img-fluid", "rounded");
+                element.style.maxHeight = "200px";
+            }
+            if (element) {
+                element.src = URL.createObjectURL(file);
+                previewContainer.appendChild(element);
+            }
+        };
+
+        // Adiciona o primeiro campo de mídia e PDF ao carregar a página
+        addMediaInput();
+        addPdfInput();
+
+        // Mantenha a lógica do modal de sucesso e limpeza de formulário
+        {% if mostrar_modal_sucesso %}
+        // ... seu código para mostrar o modal e limpar o formulário ...
+        {% endif %}
+    });
+</script>
+{% endblock %}

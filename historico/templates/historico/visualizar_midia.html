@@ -1,0 +1,167 @@
+{% extends "base/base_dashboard.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <!-- Cabeçalho -->
+    <div class="text-center mb-4">
+        <h2 class="fw-bold border-bottom pb-2">
+            📑 Relatório da Mídia
+        </h2>
+        <p class="text-muted">Resumo completo do navio e arquivos vinculados</p>
+    </div>
+
+    <!-- Card principal -->
+    <div class="card shadow border-dark">
+        <div class="card-body">
+
+            <!-- Mídia -->
+            <div class="text-center mb-4">
+                {% if midia.is_image %}
+                    <img src="{{ midia.arquivo.url }}" class="img-fluid border border-2 rounded" style="max-height:450px; object-fit:contain;">
+                {% elif midia.is_video %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-play-circle"></i>
+                        Exibição de vídeos disponível apenas aqui. O arquivo não será incluído no PDF.
+                    </div>
+                    <video src="{{ midia.arquivo.url }}" controls class="w-100 border rounded" style="max-height:450px; object-fit:contain;"></video>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Arquivo não suportado para visualização.
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Informações do navio -->
+            <h5 class="fw-bold mb-3 bg-dark text-white p-2 rounded">📋 Informações do Navio</h5>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <tbody>
+                        <tr>
+                            <th class="bg-light">Navio</th>
+                            <td>{{ midia.navio.navio }}</td>
+                            <th class="bg-light">Boca</th>
+                            <td>{{ midia.navio.boca }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">LOA</th>
+                            <td>{{ midia.navio.loa }}</td>
+                            <th class="bg-light">Armador</th>
+                            <td>{{ midia.navio.armador }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Agência</th>
+                            <td>{{ midia.navio.agencia }}</td>
+                            <th class="bg-light">Bordo</th>
+                            <td>{{ midia.navio.bordo }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">ETA</th>
+                            <td>{{ midia.navio.eta|date:"d/m/Y H:i" }}</td>
+                            <th class="bg-light">POB</th>
+                            <td>{{ midia.navio.pob|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Início Operação</th>
+                            <td>{{ midia.navio.inicio_operacao|date:"d/m/Y H:i" }}</td>
+                            <th class="bg-light">Término Operação</th>
+                            <td>{{ midia.navio.fim_operacao|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Ternos</th>
+                            <td>{{ midia.navio.ternos }}</td>
+                            <th class="bg-light">Tempo Operação</th>
+                            <td>{{ midia.navio.tempo_operacao }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Volume Descarga</th>
+                            <td>{{ midia.navio.volume_descarga }}</td>
+                            <th class="bg-light">Peso Descarga</th>
+                            <td>{{ midia.navio.peso_descarga }}</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-light">Volume Embarque</th>
+                            <td>{{ midia.navio.volume_embarque }}</td>
+                            <th class="bg-light">Peso Embarque</th>
+                            <td>{{ midia.navio.peso_embarque }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Observação -->
+            <div class="border rounded p-3 mb-4 bg-light">
+                <strong>Observação:</strong> {{ midia.observacao|default:"---" }}
+            </div>
+
+            <!-- Documentos -->
+            {% if documentos %}
+                <h5 class="fw-bold mb-2 bg-dark text-white p-2 rounded">📑 Documentos Anexados</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Arquivo</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in documentos %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                        {{ doc.arquivo.name|slice:"20:" }}
+                                    </td>
+                                    <td>
+                                        <a href="{{ doc.arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-box-arrow-up-right"></i> Abrir
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Botões -->
+        <div class="card-footer d-flex flex-wrap gap-2 justify-content-between">
+            <a href="{% url 'gerar_pdf_midia' midia.id %}" class="btn btn-primary">
+                <i class="bi bi-file-earmark-text"></i> Gerar PDF
+            </a>
+            <button class="btn btn-success" onclick="compartilharArquivo()">
+                <i class="bi bi-share-fill"></i> Compartilhar
+            </button>
+            <a href="{% url 'pagina_pesquisa_midias' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+async function compartilharArquivo() {
+    if (navigator.canShare && navigator.canShare({ files: [] })) {
+        const response = await fetch("{{ midia.arquivo.url }}");
+        const blob = await response.blob();
+        const file = new File([blob], "{{ midia.arquivo.name }}", { type: blob.type });
+
+        try {
+            await navigator.share({
+                title: "Mídia do Navio",
+                text: "Veja esta mídia vinculada ao navio {{ midia.navio.navio }}",
+                files: [file]
+            });
+        } catch (err) {
+            console.log("Erro ao compartilhar:", err);
+        }
+    } else {
+        alert("Compartilhamento de arquivo não suportado neste navegador.");
+    }
+}
+</script>
+{% endblock %}

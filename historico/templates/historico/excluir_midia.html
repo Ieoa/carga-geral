@@ -1,0 +1,20 @@
+{% extends "base/base_dashboard.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Excluir mídia</h2>
+    <p>Tem certeza que deseja excluir a mídia <strong>{{ midia.tipo_peca }}</strong> do navio <strong>{{ midia.navio.navio }}</strong>?</p>
+    
+    {% if midia.is_image %}
+        <img src="{{ midia.arquivo.url }}" alt="Mídia" style="max-width:300px;">
+    {% elif midia.is_video %}
+        <video src="{{ midia.arquivo.url }}" controls style="max-width:300px;"></video>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Excluir</button>
+        <a href="{% url 'pagina_pesquisa_midias' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

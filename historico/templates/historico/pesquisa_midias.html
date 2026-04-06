@@ -1,0 +1,97 @@
+{% extends "base/base_dashboard.html" %} {% load static %} {% block content %}
+<div class="container mt-4 text-center">
+  <h2>Pesquisa de Peças (Imagens)</h2>
+  <br>
+  <!-- Campo de busca -->
+  <div class="input-group mb-4">
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="Digite palavra-chave (ex: tubo)"
+      class="form-control"
+    />
+  </div>
+
+  <!-- Resultados -->
+  <div id="resultados" class="row"></div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("searchInput");
+    const resultadosDiv = document.getElementById("resultados");
+
+    async function fetchResultados(query) {
+      const response = await fetch(
+        `/pesquisar_midias/?q=${encodeURIComponent(query)}`
+      );
+      const data = await response.json();
+      renderResultados(data.resultados);
+    }
+
+    function renderResultados(resultados) {
+      resultadosDiv.innerHTML = "";
+
+      if (resultados.length === 0) {
+        resultadosDiv.innerHTML = "<p>Nenhum resultado encontrado.</p>";
+        return;
+      }
+
+      resultados.forEach((midia) => {
+        const col = document.createElement("div");
+        col.classList.add("col-md-4", "mb-4");
+
+        col.innerHTML = `
+                <div class="card h-100 shadow-sm">
+                    ${
+                      midia.is_image
+                        ? `<img src="${midia.arquivo}" class="card-img-top img-fluid" style="max-height:200px; object-fit:cover;">`
+                        : midia.is_video
+                        ? `<video src="${midia.arquivo}" class="card-img-top img-fluid" style="max-height:200px; object-fit:cover;" controls></video>`
+                        : `<div class="p-3 text-center text-muted">Arquivo não suportado</div>`
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">${
+                          midia.tipo_peca || "Sem descrição"
+                        }</h5>
+                        <p class="card-text">
+                            <strong>Navio:</strong> ${midia.navio || "---"}<br>
+                            <strong>Agência:</strong> ${midia.agencia || "---"}<br>
+                            <strong>Armador:</strong> ${midia.armador || "---"}<br>
+                            <strong>Início:</strong> ${midia.inicio || "---"}<br>
+                            <strong>Fim:</strong> ${midia.fim || "---"}
+                        </p>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <a href="/midia/${
+                          midia.id
+                        }/visualizar/" class="btn btn-sm btn-info">Visualizar</a>
+                        <a href="/midia/${
+                          midia.id
+                        }/editar/" class="btn btn-sm btn-warning">Editar</a>
+                        <a href="/midia/${
+                          midia.id
+                        }/excluir/" class="btn btn-sm btn-danger">Excluir</a>
+                    </div>
+                </div>
+            `;
+        resultadosDiv.appendChild(col);
+      });
+    }
+
+    // Evento de digitação com delay
+    let timeout = null;
+    searchInput.addEventListener("input", function () {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const query = searchInput.value.trim();
+        fetchResultados(query); // 🔥 sempre busca, mesmo vazio
+      }, 300); // delay de 300ms
+    });
+
+    // 🔥 Chama ao carregar a página (já traz todos)
+    fetchResultados("");
+  });
+</script>
+{% endblock %}
+<!DOCTYPE html>

@@ -1,0 +1,81 @@
+/* Garante que o fundo ocupe 100% sem rolagem */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* remove barra de rolagem */
+}
+
+.login-container {
+    background-image: url('../images/login_bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.login-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* Card de login mais elegante */
+.login-card {
+    border-radius: 15px;
+    border: none;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.92);
+    position: relative;
+    padding: 2rem;
+    max-width: 420px;   /* largura máxima reduzida */
+    width: 100%;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Logo menor */
+.login-logo {
+    max-width: 200px;
+    height: auto;
+}
+
+/* Título mais elegante */
+.login-title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Botão mais slim */
+.btn-primary {
+    background-color: #3498db;
+    border-color: #3498db;
+    border-radius: 30px;
+    padding: 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Inputs mais compactos */
+.form-control {
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    transition: all 0.3s ease;
+}
