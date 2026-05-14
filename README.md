@@ -1,69 +1,100 @@
-# 📖 Projeto Histórico de Navios
+# Projeto Historico de Navios e Estoque
 
-Sistema desenvolvido em **Django** para registro e gerenciamento de informações históricas de navios.  
-O projeto inclui autenticação de usuários, geração de relatórios em PDF com **ReportLab** e interface administrativa via painel padrão do Django.
+Sistema desenvolvido em Django para registrar historico de navios, midias, documentos e equipamentos de estoque.
 
----
+O projeto tem duas areas principais:
 
-## 🚀 Tecnologias utilizadas
-- [Python 3.12+](https://www.python.org/)
-- [Django 6.0](https://www.djangoproject.com/)
-- [ReportLab](https://www.reportlab.com/) (para geração de PDFs)
-- Banco de dados **SQLite** (padrão, pode ser trocado por PostgreSQL/MySQL)
+- Historico de navios: cadastro de navios, midias, documentos e relatorios em PDF.
+- Estoque: cadastro de colaboradores, equipamentos, QR Codes e certificacoes.
 
----
+## Tecnologias
 
-## 📦 Instalação
+- Python 3.12 ou superior
+- Django 5.2.5
+- SQLite para desenvolvimento local
+- ReportLab para geracao de PDFs
+- qrcode e Pillow para QR Codes e imagens
+- requests e BeautifulSoup para consulta/scraping auxiliar
 
-1. Clone o repositório:
-   ```bash
-   git clone <URL_DO_REPOSITORIO>
-   cd historico_navios-main
-2. Criar e ativar um ambiente virtual
-   python -m venv .venv
-.venv\Scripts\activate   # Windows
-source .venv/bin/activate # Linux/Mac
-3. instale as dependências
-   pip install -r requirements.txt
+## Como rodar localmente
 
-4. Crie um arquivo .env na raiz do projeto (mesmo nível do manage.py):
-   ```bash
-   dentro do env:
-   DJANGO_SECRET_KEY=uma_chave_secreta_grande_e_unica
-   DEBUG=True
-   DATABASE_URL=sqlite:///db.sqlite3
-O .env não deve ser versionado (já está no .gitignore).
+1. Clone o repositorio:
 
-6. Execute as migrações:
-   ```bash
-   python manage.py migrate
-Crie um superusuário para acessar o painel admin:
-
-6. crie um superusuário:
-   ```bash
-   python manage.py createsuperuser
-
-7. rode o programa
-   ```bash
-   python manage.py runserver
-
-
-📂 Estrutura de diretórios
 ```bash
-historico_navios-main/
-│
-├── config/              # Configurações principais do Django
-├── historico/           # Aplicação principal (models, views, urls)
-├── static/              # Arquivos estáticos (CSS, JS, imagens)
-├── media/               # Uploads de arquivos
-├── templates/           # Templates HTML
-├── db.sqlite3           # Banco de dados local (ignorado no Git)
-├── manage.py            # Utilitário de gerenciamento Django
-└── requirements.txt     # Dependências do projeto
+git clone https://github.com/Ieoa/carga-geral.git
+cd carga-geral
+```
 
+2. Crie e ative o ambiente virtual:
 
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
 
-🔒 Segurança
-Nunca versionar db.sqlite3 ou .env.
-Em produção, usar DEBUG=False e configurar ALLOWED_HOSTS.
-Usar banco de dados robusto (PostgreSQL/MySQL) em vez de SQLite.
+No Linux ou macOS:
+
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
+3. Instale as dependencias:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Crie um arquivo `.env` na raiz do projeto, no mesmo nivel do `manage.py`:
+
+```env
+DJANGO_SECRET_KEY=uma_chave_secreta_grande_e_unica
+DEBUG=True
+DATABASE_URL=sqlite:///db.sqlite3
+```
+
+5. Aplique as migrations:
+
+```bash
+python manage.py migrate
+```
+
+6. Crie um superusuario para acessar o admin:
+
+```bash
+python manage.py createsuperuser
+```
+
+7. Inicie o servidor:
+
+```bash
+python manage.py runserver
+```
+
+## URLs principais
+
+- Historico: http://127.0.0.1:8000/
+- Estoque: http://127.0.0.1:8000/estoque/
+- Admin Django: http://127.0.0.1:8000/admin/
+
+## Estrutura
+
+```text
+carga-geral/
+|-- config/          # Configuracoes principais do Django
+|-- historico/       # App de historico de navios, midias e PDFs
+|-- estoque/         # App de estoque, equipamentos e certificacoes
+|-- navios/          # App reservado/legado
+|-- static/          # Arquivos estaticos globais
+|-- staticfiles/     # Arquivos gerados pelo collectstatic
+|-- media/           # Uploads locais, ignorados pelo Git
+|-- manage.py
+|-- requirements.txt
+`-- requeriments.txt # Mantido por compatibilidade com o nome antigo
+```
+
+## Observacoes de seguranca
+
+- Nao versione `.env`, `db.sqlite3`, `media/` ou `venv/`.
+- Em producao, use `DEBUG=False` e configure `ALLOWED_HOSTS`.
+- Para producao, prefira PostgreSQL ou outro banco gerenciado em vez de SQLite.
