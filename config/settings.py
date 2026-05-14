@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     # Local apps
 
     'historico',
+    'estoque',
 ]
 
 MIDDLEWARE = [

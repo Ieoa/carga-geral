@@ -7,6 +7,7 @@ from django.shortcuts import render
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("historico.urls")),  # inclui suas rotas do app
+    path("estoque/", include(("estoque.urls", "estoque"), namespace="estoque")),
 ]
 
 if settings.DEBUG:

@@ -97,10 +97,10 @@ class Navio(models.Model):
     tempo_operacao = models.DurationField("Tempo de Operação", null=True, blank=True)
 
     # Texto para permitir valores variados
-    volume_descarga = models.CharField(blank=True, null=True)
-    peso_descarga = models.CharField(blank=True, null=True)
-    volume_embarque = models.CharField(blank=True, null=True)
-    peso_embarque = models.CharField(blank=True, null=True)  
+    volume_descarga = models.CharField(max_length=100, blank=True, null=True)
+    peso_descarga = models.CharField(max_length=100, blank=True, null=True)
+    volume_embarque = models.CharField(max_length=100, blank=True, null=True)
+    peso_embarque = models.CharField(max_length=100, blank=True, null=True)  
 
     # Quem cadastrou
     criado_por = models.ForeignKey(
@@ -108,7 +108,7 @@ class Navio(models.Model):
     )
 
     def __str__(self):
-        return f"{self.armador or '---'} - {self.local_atracacao or '---'}"
+        return f"{self.armador or '---'} - {self.navio or '---'}"
 
 
 
