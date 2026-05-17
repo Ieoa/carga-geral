@@ -91,17 +91,17 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- DataTables CDN -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+{% load static %}
+<link rel="stylesheet" href="{% static 'vendor/datatables/css/dataTables.bootstrap5.min.css' %}">
+<script src="{% static 'vendor/datatables/js/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/datatables/js/dataTables.bootstrap5.min.js' %}"></script>
 
 <script>
   $(document).ready(function () {
     $('#tabelaDetalhada').DataTable({
       pageLength: 10,
       language: {
-        url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+        url: "{% static 'vendor/datatables/i18n/pt-BR.json' %}"
       },
       order: [[0, 'asc']],
       responsive: true

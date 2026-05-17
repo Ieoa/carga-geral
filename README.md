@@ -15,6 +15,7 @@ O projeto tem duas areas principais:
 - ReportLab para geracao de PDFs
 - qrcode e Pillow para QR Codes e imagens
 - requests e BeautifulSoup para consulta/scraping auxiliar
+- WhiteNoise para servir arquivos estaticos em producao
 
 ## Como rodar localmente
 
@@ -51,6 +52,9 @@ pip install -r requirements.txt
 DJANGO_SECRET_KEY=uma_chave_secreta_grande_e_unica
 DEBUG=True
 DATABASE_URL=sqlite:///db.sqlite3
+ALLOWED_HOSTS=127.0.0.1,localhost
+CSRF_TRUSTED_ORIGINS=
+PUBLIC_BASE_URL=
 ```
 
 5. Aplique as migrations:
@@ -96,5 +100,40 @@ carga-geral/
 ## Observacoes de seguranca
 
 - Nao versione `.env`, `db.sqlite3`, `media/` ou `venv/`.
-- Em producao, use `DEBUG=False` e configure `ALLOWED_HOSTS`.
+- Em producao, use `DEBUG=False`, configure `ALLOWED_HOSTS` com o dominio real e use uma `DJANGO_SECRET_KEY` forte.
 - Para producao, prefira PostgreSQL ou outro banco gerenciado em vez de SQLite.
+- Configure `PUBLIC_BASE_URL` com a URL publica do sistema para que QR Codes apontem para o dominio online correto.
+- Configure HTTPS no provedor e ative `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True` e `SECURE_HSTS_SECONDS=31536000`.
+
+## Uso offline
+
+- As bibliotecas de interface usadas pelas telas ficam em `static/vendor/`, entao Bootstrap, Bootstrap Icons, jQuery, DataTables, Chart.js, html5-qrcode e Materialize nao dependem de CDN.
+- A consulta auxiliar da Praticagem salva um cache em `media/cache/praticagem_navios.json`. Sem internet, o sistema usa o ultimo cache disponivel.
+- Para transportar uma instalacao offline completa, leve junto o banco `db.sqlite3` e a pasta `media/`, pois eles contem os dados e uploads locais.
+
+## Deploy online
+
+Variaveis minimas recomendadas:
+
+```env
+DJANGO_SECRET_KEY=gere-uma-chave-longa-e-aleatoria
+DEBUG=False
+DATABASE_URL=postgres://usuario:senha@host:5432/banco
+ALLOWED_HOSTS=seudominio.com,www.seudominio.com
+CSRF_TRUSTED_ORIGINS=https://seudominio.com,https://www.seudominio.com
+PUBLIC_BASE_URL=https://seudominio.com
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=True
+```
+
+Antes de subir:
+
+```bash
+python manage.py migrate
+python manage.py collectstatic --noinput
+python manage.py check --deploy
+```

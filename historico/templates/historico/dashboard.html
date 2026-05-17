@@ -88,7 +88,7 @@
 </div>
 
 <!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
 <script>
     const ctx = document.getElementById('graficoMateriais').getContext('2d');
     const grafico = new Chart(ctx, {

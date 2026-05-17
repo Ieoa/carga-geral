@@ -6,9 +6,11 @@ import qrcode
 from io import BytesIO
 from django.core.files import File
 from django.db import models
+from django.conf import settings
 from django.utils.timezone import now
 from django.urls import reverse
 import qrcode
+from urllib.parse import urljoin
 
 class Colaborador(models.Model):
     user = models.OneToOneField(
@@ -108,14 +110,20 @@ class Equipamento(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        qr_data = f"{self.get_absolute_url()}"
+        detail_path = self.get_absolute_url()
+        public_base_url = getattr(settings, "PUBLIC_BASE_URL", "")
+        qr_data = (
+            urljoin(f"{public_base_url.rstrip('/')}/", detail_path.lstrip("/"))
+            if public_base_url
+            else detail_path
+        )
         qr = qrcode.make(qr_data)
         buffer = BytesIO()
         qr.save(buffer, format='PNG')
         file_name = f'qrcode_{self.registro}.png'
         self.qrcode.save(file_name, File(buffer), save=False)
 
-        super().save(*args, **kwargs)
+        super().save(update_fields=["qrcode"], using=kwargs.get("using"))
 
 class Certificacao(models.Model):
     equipamento = models.ForeignKey(Equipamento, on_delete=models.CASCADE, related_name='certificacoes')
