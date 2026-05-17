@@ -137,3 +137,26 @@ python manage.py migrate
 python manage.py collectstatic --noinput
 python manage.py check --deploy
 ```
+
+## Executavel Windows
+
+Para gerar um executavel local do sistema:
+
+```powershell
+.\build_windows.ps1
+```
+
+O arquivo final fica em:
+
+```text
+dist\HistoricoNavios.exe
+```
+
+Como usar em outra maquina Windows:
+
+1. Copie `HistoricoNavios.exe` para a maquina.
+2. Execute o arquivo.
+3. O sistema cria os dados locais em `%LOCALAPPDATA%\HistoricoNavios`.
+4. O navegador abre automaticamente em `http://127.0.0.1:8000/` ou na proxima porta livre.
+
+Na primeira execucao, o executavel copia o banco `db.sqlite3` e a pasta `media` embutidos como dados iniciais. Depois disso, cada maquina usa sua propria pasta local em `%LOCALAPPDATA%\HistoricoNavios`.

@@ -139,7 +139,7 @@ STORAGES = {
 
 # Media files
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = config("MEDIA_ROOT", default=os.path.join(BASE_DIR, 'media'))
 PUBLIC_BASE_URL = config("PUBLIC_BASE_URL", default="")
 
 # Production security toggles. Keep these false in local HTTP development and true behind HTTPS.
