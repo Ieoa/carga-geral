@@ -1,5 +1,6 @@
 {% extends "base/base_dashboard.html" %}
 {% block title %}Dashboard{% endblock %}
+{% block module_title %}Estoque{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -91,6 +92,19 @@
           <h5 class="card-title">Configurações</h5>
           <p class="card-text text-muted">Ajustes do sistema</p>
           <a href="#" class="btn btn-primary stretched-link">Acessar</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100 border-0 shadow-sm hover-effect">
+        <div class="card-body text-center p-4">
+          <div class="icon-circle bg-primary text-white mb-3 mx-auto">
+            <i class="bi bi-ship fs-3"></i>
+          </div>
+          <h5 class="card-title">Historico de Navios</h5>
+          <p class="card-text text-muted">Voltar para o painel de navios</p>
+          <a href="{% url 'dashboard' %}" class="btn btn-primary stretched-link">Acessar</a>
         </div>
       </div>
     </div>
