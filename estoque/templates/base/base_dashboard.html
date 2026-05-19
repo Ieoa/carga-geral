@@ -179,6 +179,9 @@
           <a class="nav-link" href="{% url 'estoque:dashboard' %}"><i class="bi bi-house-door"></i> Tela Inicial</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link" href="{% url 'dashboard' %}"><i class="bi bi-ship"></i> Historico de Navios</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" href="#"><i class="bi bi-calendar-event"></i> Agendamento</a>
         </li>
         <li class="nav-item">
@@ -200,7 +203,7 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{% url 'estoque:cadastrar_equipamento' %}">
                   <i class="bi bi-plus-circle"></i> Cadastrar Material
                 </a>
               </li>

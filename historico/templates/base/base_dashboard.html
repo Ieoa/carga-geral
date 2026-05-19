@@ -3,31 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard - Sistema Navios{% endblock %}</title>
+    <title>{% block title %}Carga Geral{% endblock %}</title>
 
     {% load static %}
-    <!-- Bootstrap -->
     <link href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link href="{% static 'vendor/bootstrap-icons/font/bootstrap-icons.min.css' %}" rel="stylesheet">
-    <!-- Estilo customizado -->
     <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
 
     <script src="{% static 'vendor/jquery/jquery-3.6.0.min.js' %}"></script>
     <script src="{% static 'vendor/inputmask/jquery.inputmask.min.js' %}"></script>
+    <script src="{% static 'vendor/html5-qrcode/html5-qrcode.min.js' %}"></script>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-       <!-- Sidebar -->
     <nav id="sidebar">
         <div class="sidebar-header">
-            <h3>Navios App</h3>
+            <h3>Carga Geral</h3>
+            <span>Sistema operacional</span>
         </div>
-        
+
         <div class="sidebar-menu">
             <ul>
                 <li>
-                    <a href="{% url 'dashboard' %}" class="active">
-                        <i class="bi bi-speedometer2"></i> Dashboard
+                    <a href="{% url 'dashboard' %}">
+                        <i class="bi bi-speedometer2"></i> Painel de Navios
                     </a>
                 </li>
                 <li>
@@ -37,12 +36,29 @@
                 </li>
                 <li>
                     <a href="{% url 'cadastrar_navio' %}">
-                        <i class="bi bi-box-seam"></i> Cadastro de Navio
+                        <i class="bi bi-ship"></i> Cadastro de Navio
+                    </a>
+                </li>
+                <li class="menu-divider"></li>
+                <li>
+                    <a href="{% url 'estoque:dashboard' %}">
+                        <i class="bi bi-grid-1x2"></i> Painel do Estoque
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'estoque:estoque_resumido' %}">
+                        <i class="bi bi-box-seam"></i> Estoque
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'estoque:cadastrar_equipamento' %}">
+                        <i class="bi bi-plus-circle"></i> Cadastrar Material
+                    </a>
+                </li>
+                <li class="menu-divider"></li>
+                <li>
                     <a href="{% url 'cadastrar_colaborador' %}">
-                        <i class="bi bi-person-plus"></i> Cadastro de Usuário
+                        <i class="bi bi-person-plus"></i> Cadastro de Usuario
                     </a>
                 </li>
                 <li>
@@ -54,39 +70,34 @@
         </div>
     </nav>
 
-    <!-- Content Wrapper -->
     <div id="content">
-        <!-- Navbar -->
         <nav class="navbar navbar-custom navbar-expand-lg">
             <div class="container-fluid">
                 <button type="button" id="sidebarCollapse" class="btn btn-light">
                     <i class="bi bi-list"></i>
                 </button>
-                
+
+                <h4 class="module-title mb-0">{% block module_title %}Carga Geral{% endblock %}</h4>
+
                 <div class="ms-auto user-info">
                     <div class="welcome-text">
-                        <span class="user-name" id="user-name">{{ user.first_name }} {{ user.last_name }}</span>
+                        <span class="user-name" id="user-name">{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
                         <span class="date-time" id="current-date-time"></span>
                     </div>
                     <div class="user-avatar">
-                        {{ user.first_name|first }}{{ user.last_name|first }}
+                        {{ user.first_name|first|default:user.username|first }}{{ user.last_name|first }}
                     </div>
                 </div>
             </div>
         </nav>
 
-       
-
-            <!-- Bloco de conteúdo das páginas -->
+        <main class="main-content">
             {% block content %}{% endblock %}
-
-        </div>
+        </main>
     </div>
 
-    <!-- JS -->
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <script>
-        // Atualizar data e hora em tempo real
         function updateDateTime() {
             const now = new Date();
             document.getElementById('current-date-time').textContent = now.toLocaleString('pt-BR');
@@ -94,11 +105,11 @@
         setInterval(updateDateTime, 1000);
         updateDateTime();
 
-        // Toggle sidebar
         document.getElementById('sidebarCollapse').addEventListener('click', function () {
             document.getElementById('sidebar').classList.toggle('active');
             document.getElementById('content').classList.toggle('active');
         });
     </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

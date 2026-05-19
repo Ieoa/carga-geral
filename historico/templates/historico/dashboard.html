@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block title %}Dashboard{% endblock %}
+{% block module_title %}Historico de Navios{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -9,7 +10,7 @@
 
     <!-- Linha 1: Cards -->
     <div class="row mb-4">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <h5 class="card-title">Total de Navios</h5>
@@ -17,11 +18,22 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4 mt-3 mt-md-0">
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <h5 class="card-title">Navios (últimos 30 dias)</h5>
                     <p class="display-5">{{ total_navios_30d }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mt-3 mt-md-0">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Estoque</h5>
+                    <p class="text-muted mb-3">Materiais, equipamentos e usuarios.</p>
+                    <a href="{% url 'estoque:dashboard' %}" class="btn btn-primary">
+                        <i class="bi bi-tools me-1"></i> Abrir Estoque
+                    </a>
                 </div>
             </div>
         </div>
