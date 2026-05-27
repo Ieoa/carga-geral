@@ -42,6 +42,10 @@
       z-index: 1000;
     }
 
+    .sidebar.collapsed {
+      margin-left: calc(var(--sidebar-width) * -1);
+    }
+
     .sidebar-header {
       padding: 20px;
       background-color: var(--primary-dark);
@@ -83,6 +87,10 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+    }
+
+    .main-content.expanded {
+      margin-left: 0;
     }
 
     /* Header */
@@ -166,7 +174,8 @@
       <img src="{% if user.profile.foto %}{{ user.profile.foto.url }}{% else %}{% static 'img/user.png' %}{% endif %}"
         alt="Usuário">
       <h5>{{ user.first_name }} {{ user.last_name }}</h5>
-      <p class="mb-0">Matrícula: {{ user.colaborador.matricula }}</p>
+      <p class="mb-0">Matrícula: {{ user.estoque_colaborador.matricula|default:user.colaborador.matricula|default:user.username }}</p>
+      <p class="mb-0 small">Perfil: {{ perfil_acesso|title }}</p>
       <p class="mb-0 small">
         <i class="bi bi-envelope me-1"></i>
         {{ user.email }}
@@ -180,9 +189,6 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="{% url 'dashboard' %}"><i class="bi bi-ship"></i> Historico de Navios</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#"><i class="bi bi-calendar-event"></i> Agendamento</a>
         </li>
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="collapse" href="#equipamentoSubmenu" role="button" aria-expanded="false"
@@ -209,13 +215,7 @@
               </li>
             </ul>
           </div>
-        <li class="nav-item">
-          <a class="nav-link" href="#"><i class="bi bi-award"></i> Certificações</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#"><i class="bi bi-box-seam"></i> Inventário</a>
-        </li>
-
+        {% if can_manage_users %}
         <!-- Item Configuração com Submenu -->
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="collapse" href="#configSubmenu" role="button" aria-expanded="false">
@@ -237,6 +237,7 @@
             </ul>
           </div>
         </li>
+        {% endif %}
 
         <li class="nav-item mt-3">
           <form method="post" action="{% url 'estoque:logout' %}">
@@ -254,7 +255,7 @@
   <div class="main-content">
     <!-- Top Header -->
     <header class="top-header">
-      <button class="btn btn-primary d-lg-none" id="sidebarToggle">
+      <button class="btn btn-primary" id="sidebarToggle">
         <i class="bi bi-list"></i>
       </button>
       <h4 class="mb-0">Sistema de Estoque</h4>
@@ -279,6 +280,8 @@
     // Toggle sidebar in mobile
     document.getElementById('sidebarToggle').addEventListener('click', function () {
       document.getElementById('sidebar').classList.toggle('active');
+      document.getElementById('sidebar').classList.toggle('collapsed');
+      document.querySelector('.main-content').classList.toggle('expanded');
     });
 
     // Live clock

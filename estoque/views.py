@@ -21,6 +21,8 @@ from django.core.paginator import Paginator
 # Local Apps
 from .forms import ColaboradorForm, EquipamentoForm
 from .models import Certificacao, Colaborador, Equipamento
+from historico.audit import diff, log_action, snapshot
+from historico.permissions import can_manage_users
 
 
 class CustomLoginView(LoginView):
@@ -52,8 +54,8 @@ def cadastrar_colaborador(request):
     Requer permissões de superusuário ou 'estoque.add_colaborador'.
     """
     # Verificação de permissões
-    if not request.user.is_superuser and not request.user.has_perm('estoque.add_colaborador'):
-        messages.error(request, 'Você não tem permissão para acessar esta página.')
+    if not can_manage_users(request.user):
+        messages.error(request, 'Somente administradores podem cadastrar usuários.')
         return redirect('estoque:dashboard')
 
     if request.method == 'POST':
@@ -80,6 +82,7 @@ def cadastrar_colaborador(request):
                 colaborador.user = user
                 colaborador.data_criacao = timezone.now()
                 colaborador.save()
+                log_action(request.user, colaborador, "create", snapshot(colaborador))
                 
                 messages.success(request, 'Colaborador cadastrado com sucesso!')
                 return redirect('estoque:cadastrar_colaborador')
@@ -97,6 +100,9 @@ def cadastrar_colaborador(request):
 @login_required
 def listar_colaboradores(request):
     """Lista todos os colaboradores cadastrados"""
+    if not can_manage_users(request.user):
+        messages.error(request, 'Somente administradores podem acessar colaboradores.')
+        return redirect('estoque:dashboard')
     colaboradores = Colaborador.objects.all()
     return render(request, 'estoque/colaboradores.html', {
         'colaboradores': colaboradores
@@ -106,9 +112,13 @@ def listar_colaboradores(request):
 @login_required
 def editar_colaborador(request, pk):
     """Edita informações de um colaborador existente"""
+    if not can_manage_users(request.user):
+        messages.error(request, 'Somente administradores podem editar colaboradores.')
+        return redirect('estoque:dashboard')
     colaborador = get_object_or_404(Colaborador, pk=pk)
 
     if request.method == 'POST':
+        before = snapshot(colaborador)
         form = ColaboradorForm(request.POST, instance=colaborador)
         if form.is_valid():
             colaborador = form.save()
@@ -117,6 +127,9 @@ def editar_colaborador(request, pk):
             colaborador.user.first_name = colaborador.nome.split()[0]
             colaborador.user.last_name = ' '.join(colaborador.nome.split()[1:])
             colaborador.user.save()
+            changes = diff(before, snapshot(colaborador))
+            if changes:
+                log_action(request.user, colaborador, "update", changes)
             
             messages.success(request, 'Colaborador atualizado com sucesso!')
             return redirect('estoque:listar_colaboradores')
@@ -132,9 +145,14 @@ def editar_colaborador(request, pk):
 @login_required
 def excluir_colaborador(request, pk):
     """Remove colaborador e usuário associado"""
+    if not can_manage_users(request.user):
+        messages.error(request, 'Somente administradores podem excluir colaboradores.')
+        return redirect('estoque:dashboard')
     colaborador = get_object_or_404(Colaborador, pk=pk)
 
     if request.method == 'POST':
+        before = snapshot(colaborador)
+        log_action(request.user, colaborador, "delete", before)
         if colaborador.user:
             colaborador.user.delete()  # Remove usuário vinculado
         colaborador.delete()
@@ -157,14 +175,18 @@ def cadastrar_equipamento(request):
         form = EquipamentoForm(request.POST, request.FILES)
         
         if form.is_valid():
-            equipamento = form.save()
+            equipamento = form.save(commit=False)
+            equipamento.criado_por = request.user
+            equipamento.atualizado_por = request.user
+            equipamento.save()
+            log_action(request.user, equipamento, "create", snapshot(equipamento))
             certificados_data = json.loads(request.POST.get('certificados_json', '[]'))
             
             # Processa cada certificado enviado
             for idx, cert_data in enumerate(certificados_data):
                 anexo_file = request.FILES.get(f'anexo_{idx}')
                 
-                Certificacao.objects.create(
+                certificacao = Certificacao.objects.create(
                     equipamento=equipamento,
                     nome_certificado=cert_data.get('nome'),
                     empresa_certificadora=cert_data.get('empresa'),
@@ -172,8 +194,10 @@ def cadastrar_equipamento(request):
                     data_vencimento=cert_data.get('vencimento') or None,
                     codigo_certificado=cert_data.get('codigo'),
                     detalhes=cert_data.get('detalhes'),
-                    anexo=anexo_file  # Pode ser None se não houver arquivo
+                    anexo=anexo_file,
+                    criado_por=request.user,
                 )
+                log_action(request.user, certificacao, "create", snapshot(certificacao))
 
             messages.success(request, 'Equipamento cadastrado com sucesso!')
             return render(request, 'estoque/equipamento_cadastro.html', {

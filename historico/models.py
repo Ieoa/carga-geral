@@ -5,6 +5,17 @@ from django.core.validators import RegexValidator
 from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from pathlib import Path
+
+
+def navio_media_path(instance, filename):
+    navio_id = instance.navio_id or "sem_navio"
+    return f"navios/{navio_id}/midias/{Path(filename).name}"
+
+
+def navio_documento_path(instance, filename):
+    navio_id = instance.navio_id or "sem_navio"
+    return f"navios/{navio_id}/documentos/{Path(filename).name}"
 
 class Colaborador(models.Model):
     
@@ -106,6 +117,13 @@ class Navio(models.Model):
     criado_por = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="navios"
     )
+    atualizado_por = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="navios_atualizados",
+    )
 
     def __str__(self):
         return f"{self.armador or '---'} - {self.navio or '---'}"
@@ -114,10 +132,17 @@ class Navio(models.Model):
 
 class FotoVideoNavio(models.Model):
     navio = models.ForeignKey(Navio, on_delete=models.CASCADE, related_name="midias")
-    arquivo = models.FileField(upload_to="navios/midias/")
+    arquivo = models.FileField(upload_to=navio_media_path)
     observacao = models.TextField(blank=True, null=True)
     tipo_peca = models.CharField(max_length=50, blank=True, null=True)  # Novo campo para tipo de peça
     data_criacao = models.DateTimeField(auto_now_add=True)
+    criado_por = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="midias_navio",
+    )
 
     def is_image(self):
         return self.arquivo.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))
@@ -128,4 +153,35 @@ class FotoVideoNavio(models.Model):
     
 class DocumentoNavio(models.Model):
     navio = models.ForeignKey(Navio, on_delete=models.CASCADE, related_name="documentos")
-    arquivo = models.FileField(upload_to="navios/documentos/")
+    arquivo = models.FileField(upload_to=navio_documento_path)
+    criado_por = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documentos_navio",
+    )
+
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = [
+        ("create", "Criação"),
+        ("update", "Alteração"),
+        ("delete", "Exclusão"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    actor_role = models.CharField(max_length=30, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    app_label = models.CharField(max_length=80)
+    model_name = models.CharField(max_length=80)
+    object_pk = models.CharField(max_length=80)
+    object_repr = models.CharField(max_length=255)
+    changes = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_action_display()} - {self.object_repr}"

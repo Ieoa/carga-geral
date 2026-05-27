@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.db.models import Q
 from ..models import FotoVideoNavio
+from ..permissions import can_delete_records, can_edit_object
 from datetime import datetime
 
 @login_required
@@ -54,6 +55,8 @@ def pesquisar_midias(request):
             "armador": getattr(midia.navio, "armador", "---"),
             "inicio": midia.navio.inicio_operacao.strftime("%d/%m/%Y %H:%M") if midia.navio.inicio_operacao else None,
             "fim": midia.navio.fim_operacao.strftime("%d/%m/%Y %H:%M") if midia.navio.fim_operacao else None,
+            "can_edit": can_edit_object(request.user, midia.navio),
+            "can_delete": can_delete_records(request.user),
         })
 
     return JsonResponse({"resultados": data})

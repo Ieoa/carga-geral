@@ -62,16 +62,16 @@
                             <strong>Fim:</strong> ${midia.fim || "---"}
                         </p>
                     </div>
-                    <div class="card-footer d-flex justify-content-between">
+                    <div class="card-footer d-flex gap-2 flex-wrap">
                         <a href="/midia/${
                           midia.id
                         }/visualizar/" class="btn btn-sm btn-info">Visualizar</a>
-                        <a href="/midia/${
+                        ${midia.can_edit ? `<a href="/midia/${
                           midia.id
-                        }/editar/" class="btn btn-sm btn-warning">Editar</a>
-                        <a href="/midia/${
+                        }/editar/" class="btn btn-sm btn-warning">Editar</a>` : ""}
+                        ${midia.can_delete ? `<a href="/midia/${
                           midia.id
-                        }/excluir/" class="btn btn-sm btn-danger">Excluir</a>
+                        }/excluir/" class="btn btn-sm btn-danger">Excluir</a>` : ""}
                     </div>
                 </div>
             `;
@@ -94,4 +94,3 @@
   });
 </script>
 {% endblock %}
-<!DOCTYPE html>

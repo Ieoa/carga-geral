@@ -1,17 +1,25 @@
-from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from ..forms import NavioForm, DocumentoNavioForm, FotoVideoNavioForm
-from ..models import Navio, DocumentoNavio, FotoVideoNavio
+from django.shortcuts import get_object_or_404, redirect, render
+
+from ..audit import diff, log_action, snapshot
+from ..forms import DocumentoNavioForm, FotoVideoNavioForm, NavioForm
+from ..models import DocumentoNavio, FotoVideoNavio, Navio
+from ..permissions import can_edit_object
 
 
 @login_required
 def editar_navio(request, pk):
     navio = get_object_or_404(Navio, pk=pk)
+    if not can_edit_object(request.user, navio):
+        messages.error(request, "Você só pode alterar navios cadastrados por você.")
+        return redirect("pagina_pesquisa_midias")
+
     documentos = DocumentoNavio.objects.filter(navio=navio)
     midias = FotoVideoNavio.objects.filter(navio=navio)
 
     if request.method == "POST":
+        before = snapshot(navio)
         navio_form = NavioForm(request.POST, instance=navio)
         arquivos_pdf = request.FILES.getlist("arquivos")
         midias_files = request.FILES.getlist("midias")
@@ -19,26 +27,39 @@ def editar_navio(request, pk):
         tipo_pecas = request.POST.getlist("tipo_peca")
 
         if navio_form.is_valid():
-            navio = navio_form.save()
+            navio = navio_form.save(commit=False)
+            navio.atualizado_por = request.user
+            navio.save()
 
-            # salvar novos PDFs
+            changes = diff(before, snapshot(navio))
+            if changes:
+                log_action(request.user, navio, "update", changes)
+
             for arquivo in arquivos_pdf:
                 if arquivo.content_type == "application/pdf":
-                    DocumentoNavio.objects.create(navio=navio, arquivo=arquivo)
+                    documento = DocumentoNavio.objects.create(
+                        navio=navio,
+                        arquivo=arquivo,
+                        criado_por=request.user,
+                    )
+                    log_action(request.user, documento, "create", snapshot(documento))
 
-            # salvar novas mídias
             for idx, file in enumerate(midias_files):
                 obs = observacoes[idx] if idx < len(observacoes) else ""
                 tipo = tipo_pecas[idx] if idx < len(tipo_pecas) else ""
-                FotoVideoNavio.objects.create(
-                    navio=navio, arquivo=file, observacao=obs, tipo_peca=tipo
+                midia = FotoVideoNavio.objects.create(
+                    navio=navio,
+                    arquivo=file,
+                    observacao=obs,
+                    tipo_peca=tipo,
+                    criado_por=request.user,
                 )
+                log_action(request.user, midia, "create", snapshot(midia))
 
             messages.success(request, "Navio atualizado com sucesso.")
-            return redirect('pagina_pesquisa_midias')
+            return redirect("pagina_pesquisa_midias")
 
-        else:
-            messages.error(request, "Corrija os erros no formulário.")
+        messages.error(request, "Corrija os erros no formulário.")
     else:
         navio_form = NavioForm(instance=navio)
 

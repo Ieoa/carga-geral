@@ -10,6 +10,7 @@ from django.conf import settings
 from django.utils.timezone import now
 from django.urls import reverse
 import qrcode
+from pathlib import Path
 from urllib.parse import urljoin
 
 class Colaborador(models.Model):
@@ -71,13 +72,21 @@ class Colaborador(models.Model):
 
 
 def caminho_foto(instance, filename):
-    return f'equipamentos/fotos/{filename}'
+    registro = instance.registro or "novo"
+    return f'equipamentos/{registro}/fotos/{Path(filename).name}'
 
 def caminho_qrcode(instance, filename):
-    return f'equipamentos/qrcodes/{filename}'
+    registro = instance.registro or "novo"
+    return f'equipamentos/{registro}/qrcodes/{Path(filename).name}'
 
 def caminho_anexo(instance, filename):
-    return f'equipamentos/anexos/{filename}'
+    registro = instance.registro or "novo"
+    return f'equipamentos/{registro}/anexos/{Path(filename).name}'
+
+
+def caminho_certificacao(instance, filename):
+    equipamento_id = instance.equipamento_id or "sem_equipamento"
+    return f"equipamentos/{equipamento_id}/certificacoes/{Path(filename).name}"
 
 class Equipamento(models.Model):
     registro = models.AutoField(primary_key=True)  # número único automático
@@ -100,6 +109,20 @@ class Equipamento(models.Model):
     foto = models.ImageField(upload_to=caminho_foto, null=True, blank=True)
     qrcode = models.ImageField(upload_to=caminho_qrcode, blank=True)
     data_cadastro = models.DateTimeField(default=now)
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="equipamentos_criados",
+    )
+    atualizado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="equipamentos_atualizados",
+    )
 
     def __str__(self):
         return f"{self.equipamento} ({self.identificador})"
@@ -133,7 +156,14 @@ class Certificacao(models.Model):
     empresa_certificadora = models.CharField(max_length=100)
     codigo_certificado = models.CharField(max_length=50)
     detalhes = models.TextField(blank=True, null=True)
-    anexo = models.FileField(upload_to='certificacoes/', null=True, blank=True)
+    anexo = models.FileField(upload_to=caminho_certificacao, null=True, blank=True)
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="certificacoes_criadas",
+    )
 
     def __str__(self):
         return f"{self.nome_certificado} - {self.equipamento}"

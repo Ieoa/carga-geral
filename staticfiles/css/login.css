@@ -79,3 +79,37 @@ html, body {
     border: 1px solid #ddd;
     transition: all 0.3s ease;
 }
+
+@media (max-width: 576px) {
+    html, body {
+        overflow: auto;
+    }
+
+    .login-container {
+        align-items: stretch;
+        padding: 20px 14px;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: none;
+        min-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 1.6rem;
+    }
+
+    .login-logo {
+        max-width: 230px;
+    }
+
+    .login-title {
+        font-size: 1.7rem;
+    }
+
+    .form-control {
+        min-height: 52px;
+        font-size: 1rem;
+    }
+}
