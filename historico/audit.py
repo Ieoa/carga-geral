@@ -28,6 +28,8 @@ def log_action(user, instance, action, changes=None):
         return
     from .permissions import profile_role
 
+    normalized_changes = _normalize_changes(action, changes or {})
+
     AuditLog.objects.create(
         user=user,
         actor_role=profile_role(user),
@@ -36,7 +38,7 @@ def log_action(user, instance, action, changes=None):
         model_name=instance._meta.model_name,
         object_pk=str(instance.pk),
         object_repr=str(instance),
-        changes=changes or {},
+        changes=normalized_changes,
     )
 
 
@@ -44,3 +46,15 @@ def _stringify(value):
     if isinstance(value, (list, tuple)):
         return [_stringify(item) for item in value]
     return "" if value is None else str(value)
+
+
+def _normalize_changes(action, changes):
+    if not changes:
+        return {}
+    if all(isinstance(value, dict) and {"from", "to"} & set(value) for value in changes.values()):
+        return changes
+    if action == "create":
+        return {key: {"from": "", "to": value} for key, value in changes.items()}
+    if action == "delete":
+        return {key: {"from": value, "to": ""} for key, value in changes.items()}
+    return changes

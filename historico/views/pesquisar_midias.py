@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.db.models import Q
 from ..models import FotoVideoNavio
-from ..permissions import can_delete_records, can_edit_object
+from ..permissions import can_delete_records, can_edit_object, filter_midia_queryset
 from datetime import datetime
 
 @login_required
@@ -16,7 +16,10 @@ def pagina_pesquisa_midias(request):
 @login_required
 def pesquisar_midias(request):
     query = request.GET.get("q", "").strip()
-    resultados = FotoVideoNavio.objects.select_related("navio")
+    resultados = filter_midia_queryset(
+        request.user,
+        FotoVideoNavio.objects.select_related("navio", "navio__criado_por"),
+    )
 
     if query:
         filtros = (

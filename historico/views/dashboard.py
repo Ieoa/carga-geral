@@ -3,23 +3,27 @@ from django.utils import timezone
 from datetime import timedelta
 from ..models import Navio, FotoVideoNavio
 from django.contrib.auth.decorators import login_required
+from ..permissions import filter_midia_queryset, filter_owned_queryset
 #from ..utils.scraping_praticagem_reduzido import get_navios_cargo_reduzido
 
 @login_required
 def dashboard_view(request):
+    navios = filter_owned_queryset(request.user, Navio.objects.all())
+    midias_base = filter_midia_queryset(request.user, FotoVideoNavio.objects.all())
+
     # Total de navios
-    total_navios = Navio.objects.count()
+    total_navios = navios.count()
     #navios_praticagem = get_navios_cargo_reduzido()
     # Total de navios nos últimos 30 dias
     hoje = timezone.now()
     trinta_dias_atras = hoje - timedelta(days=30)
-    total_navios_30d = Navio.objects.filter(criado_por__isnull=False, eta__gte=trinta_dias_atras).count()
+    total_navios_30d = navios.filter(eta__gte=trinta_dias_atras).count()
 
     # Últimos 5 navios cadastrados
-    ultimos_navios = Navio.objects.order_by("-id")[:5]
+    ultimos_navios = navios.order_by("-id")[:5]
     # Gráfico de materiais por tipo (últimos 30 dias)
     midias = (
-        FotoVideoNavio.objects
+        midias_base
         .filter(data_criacao__gte=trinta_dias_atras)
         .values("tipo_peca")
         .order_by("tipo_peca")

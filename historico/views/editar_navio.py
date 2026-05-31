@@ -10,7 +10,8 @@ from ..permissions import can_edit_object
 
 @login_required
 def editar_navio(request, pk):
-    navio = get_object_or_404(Navio, pk=pk)
+    midia_or_navio = FotoVideoNavio.objects.select_related("navio").filter(pk=pk).first()
+    navio = midia_or_navio.navio if midia_or_navio else get_object_or_404(Navio, pk=pk)
     if not can_edit_object(request.user, navio):
         messages.error(request, "Você só pode alterar navios cadastrados por você.")
         return redirect("pagina_pesquisa_midias")

@@ -8,10 +8,14 @@ from reportlab.lib import colors
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from ..models import FotoVideoNavio, DocumentoNavio
+from ..permissions import filter_midia_queryset
 
 @login_required
 def gerar_pdf_midia(request, pk):
-    midia = get_object_or_404(FotoVideoNavio, pk=pk)
+    midia = get_object_or_404(
+        filter_midia_queryset(request.user, FotoVideoNavio.objects.select_related("navio")),
+        pk=pk,
+    )
     documentos = DocumentoNavio.objects.filter(navio=midia.navio)
 
     buffer = io.BytesIO()

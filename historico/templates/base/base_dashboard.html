@@ -47,7 +47,7 @@
                 </li>
                 <li>
                     <a href="{% url 'estoque:estoque_resumido' %}">
-                        <i class="bi bi-box-seam"></i> Estoque
+                        <i class="bi bi-box-seam"></i> Resumo do Estoque
                     </a>
                 </li>
                 <li>
@@ -63,6 +63,12 @@
                     </a>
                 </li>
                 {% endif %}
+                <li class="menu-divider"></li>
+                <li>
+                    <a href="{% url 'auditoria' %}">
+                        <i class="bi bi-clock-history"></i> Auditoria
+                    </a>
+                </li>
                 <li>
                     <a href="{% url 'logout' %}">
                         <i class="bi bi-box-arrow-right"></i> Sair

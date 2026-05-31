@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import dashboard, login, cadastrar_navio, pesquisar_midias, excluir_midia, detalhes_midia, pdf_midia, editar_navio, cadastrar_colaborador
+from .views import dashboard, login, cadastrar_navio, pesquisar_midias, excluir_midia, detalhes_midia, pdf_midia, editar_navio, cadastrar_colaborador, auditoria
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -17,6 +17,7 @@ urlpatterns = [
     path("midia/<int:pk>/excluir/", excluir_midia.excluir_midia, name="excluir_midia"),
     path("midia/<int:pk>/visualizar/", detalhes_midia.visualizar_midia, name="visualizar_midia"),
     path("midia/<int:pk>/pdf/", pdf_midia.gerar_pdf_midia, name="gerar_pdf_midia"),
+    path("auditoria/", auditoria.auditoria, name="auditoria"),
     path("colaboradores/cadastrar/", cadastrar_colaborador.cadastrar_colaborador, name="cadastrar_colaborador")
 ]
 

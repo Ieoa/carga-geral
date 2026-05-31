@@ -22,7 +22,7 @@ from django.core.paginator import Paginator
 from .forms import ColaboradorForm, EquipamentoForm
 from .models import Certificacao, Colaborador, Equipamento
 from historico.audit import diff, log_action, snapshot
-from historico.permissions import can_manage_users
+from historico.permissions import can_manage_users, filter_owned_queryset
 
 
 class CustomLoginView(LoginView):
@@ -217,7 +217,7 @@ def cadastrar_equipamento(request):
 def listar_equipamentos(request):
     """Lista equipamentos com possibilidade de busca"""
     busca = request.GET.get('q', '')
-    equipamentos = Equipamento.objects.all()
+    equipamentos = filter_owned_queryset(request.user, Equipamento.objects.all())
 
     if busca:
         equipamentos = equipamentos.filter(
@@ -235,7 +235,7 @@ def listar_equipamentos(request):
 @login_required
 def detalhe_equipamento(request, pk):
     
-    equipamento = get_object_or_404(Equipamento, pk=pk)
+    equipamento = get_object_or_404(filter_owned_queryset(request.user, Equipamento.objects.all()), pk=pk)
     today = timezone.now().date()
     return render(request, 'estoque/equipamento_detalhe.html', {
         'equipamento': equipamento,
@@ -253,9 +253,10 @@ def ler_qrcode(request):
 @login_required
 def estoque_resumido(request):
     search = request.GET.get('search', '')
+    equipamentos_base = filter_owned_queryset(request.user, Equipamento.objects.all())
 
     agrupados = (
-        Equipamento.objects
+        equipamentos_base
         .filter(equipamento__icontains=search)
         .values('equipamento')
         .annotate(
@@ -269,7 +270,7 @@ def estoque_resumido(request):
     hoje = timezone.now().date()
 
     for item in agrupados:
-        registros = Equipamento.objects.filter(equipamento=item['equipamento'])
+        registros = equipamentos_base.filter(equipamento=item['equipamento'])
         if not registros.exists():
             continue
 
@@ -316,7 +317,10 @@ def estoque_resumido(request):
 
 @login_required
 def estoque_detalhado(request, nome_equipamento):
-    equipamentos = Equipamento.objects.filter(equipamento=nome_equipamento)
+    equipamentos = filter_owned_queryset(
+        request.user,
+        Equipamento.objects.filter(equipamento=nome_equipamento),
+    )
     return render(request, 'estoque/estoque_detalhado.html', {
         'nome_equipamento': nome_equipamento,
         'equipamentos': equipamentos,
@@ -324,11 +328,13 @@ def estoque_detalhado(request, nome_equipamento):
     })
     
 
+@login_required
 def autocomplete_equipamento(request):
     """Endpoint AJAX para autocompletar nomes de equipamentos"""
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         term = request.GET.get('term', '').upper()
-        equipamentos = Equipamento.objects.filter(
-            equipamento__icontains=term
+        equipamentos = filter_owned_queryset(
+            request.user,
+            Equipamento.objects.filter(equipamento__icontains=term),
         ).values_list('equipamento', flat=True).distinct()
         return JsonResponse(list(equipamentos), safe=False)

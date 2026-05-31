@@ -87,10 +87,13 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      width: calc(100% - var(--sidebar-width));
+      overflow-x: hidden;
     }
 
     .main-content.expanded {
       margin-left: 0;
+      width: 100%;
     }
 
     /* Header */
@@ -116,6 +119,8 @@
     .content-wrapper {
       flex: 1;
       padding: 20px;
+      max-width: 100%;
+      overflow-x: auto;
     }
 
     /* Responsividade */
@@ -130,6 +135,15 @@
 
       .main-content {
         margin-left: 0;
+        width: 100%;
+      }
+
+      .top-header {
+        gap: 10px;
+      }
+
+      .top-header h4 {
+        font-size: 1rem;
       }
     }
 
@@ -200,7 +214,7 @@
             <ul class="nav flex-column ps-4">
               <li class="nav-item">
                 <a class="nav-link" href="{% url 'estoque:estoque_resumido' %}">
-                  <i class="bi bi-list-ul"></i> Estoque
+                  <i class="bi bi-list-ul"></i> Resumo do Estoque
                 </a>
               </li>
               <li class="nav-item">
@@ -238,6 +252,12 @@
           </div>
         </li>
         {% endif %}
+
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'auditoria' %}">
+            <i class="bi bi-clock-history"></i> Auditoria
+          </a>
+        </li>
 
         <li class="nav-item mt-3">
           <form method="post" action="{% url 'estoque:logout' %}">
@@ -277,11 +297,16 @@
   <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 
   <script>
-    // Toggle sidebar in mobile
+    // Toggle sidebar
     document.getElementById('sidebarToggle').addEventListener('click', function () {
-      document.getElementById('sidebar').classList.toggle('active');
-      document.getElementById('sidebar').classList.toggle('collapsed');
-      document.querySelector('.main-content').classList.toggle('expanded');
+      const sidebar = document.getElementById('sidebar');
+      const content = document.querySelector('.main-content');
+      if (window.matchMedia('(max-width: 992px)').matches) {
+        sidebar.classList.toggle('active');
+      } else {
+        sidebar.classList.toggle('collapsed');
+        content.classList.toggle('expanded');
+      }
     });
 
     // Live clock

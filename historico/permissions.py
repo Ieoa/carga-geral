@@ -50,6 +50,18 @@ def can_edit_object(user, obj):
     return bool(owner and owner == user)
 
 
+def filter_owned_queryset(user, queryset):
+    if is_manager(user):
+        return queryset
+    return queryset.filter(criado_por=user)
+
+
+def filter_midia_queryset(user, queryset):
+    if is_manager(user):
+        return queryset
+    return queryset.filter(navio__criado_por=user)
+
+
 def role_context(request):
     user = request.user
     return {

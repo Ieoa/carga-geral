@@ -38,7 +38,6 @@ project_datas = [
     ('estoque\\templates', 'estoque\\templates'),
     ('estoque\\migrations', 'estoque\\migrations'),
     ('static', 'static'),
-    ('staticfiles', 'staticfiles'),
     ('media', 'media'),
     ('db.sqlite3', '.'),
 ]

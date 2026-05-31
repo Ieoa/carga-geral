@@ -59,14 +59,36 @@
   }
 
   @media (max-width: 576px) {
+    body {
+      align-items: stretch;
+      padding: 18px 12px;
+    }
+
+    .login-container {
+      display: flex;
+      align-items: center;
+      max-width: none;
+      padding: 0;
+    }
+
     .login-box {
+      width: 100%;
+      min-height: calc(100vh - 36px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
       padding: 1.75rem;
     }
     
     .login-logo {
-      width: 70px;
-      height: 70px;
+      width: 180px;
+      height: auto;
       margin-bottom: 1.25rem;
+    }
+
+    .form-control-with-icon .form-control {
+      height: 54px;
+      font-size: 1rem;
     }
   }
 </style>
