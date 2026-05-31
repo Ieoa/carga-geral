@@ -89,12 +89,12 @@
 
                 <div class="ms-auto user-info">
                     <div class="welcome-text">
-                        <span class="user-name" id="user-name">{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
+                        <span class="user-name" id="user-name">{{ user.get_full_name|default:user.username }}</span>
                         <span class="profile-badge">{{ perfil_acesso|title }}</span>
                         <span class="date-time" id="current-date-time"></span>
                     </div>
                     <div class="user-avatar">
-                        {{ user.first_name|first|default:user.username|first }}{{ user.last_name|first }}
+                        {{ user.first_name|first|default:user.username|first|upper }}{{ user.last_name|first|upper }}
                     </div>
                 </div>
             </div>

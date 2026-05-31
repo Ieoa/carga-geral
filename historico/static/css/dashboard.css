@@ -186,6 +186,69 @@ body {
     overflow-x: hidden;
 }
 
+.dashboard-page {
+    max-width: 1180px;
+}
+
+.dashboard-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.dashboard-heading h1 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 1.85rem;
+    font-weight: 800;
+}
+
+.dashboard-heading p {
+    margin: 5px 0 0;
+    color: var(--muted-color);
+}
+
+.metric-card {
+    min-height: 178px;
+}
+
+.metric-card .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.metric-card .card-title {
+    margin: 10px 0 4px;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.metric-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e8f5f7;
+    color: var(--accent-dark);
+    font-size: 1.3rem;
+}
+
+.metric-value {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 2.1rem;
+    line-height: 1;
+    font-weight: 800;
+}
+
 .table-responsive,
 .card {
     max-width: 100%;
@@ -256,6 +319,18 @@ body {
     .main-content {
         padding: 16px;
         overflow-x: auto;
+    }
+
+    .dashboard-heading {
+        margin-bottom: 18px;
+    }
+
+    .dashboard-heading h1 {
+        font-size: 1.55rem;
+    }
+
+    .metric-card {
+        min-height: 150px;
     }
 
     .navbar-custom .container-fluid {

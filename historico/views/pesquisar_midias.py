@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.db.models import Q
 from ..models import FotoVideoNavio
-from ..permissions import can_delete_records, can_edit_object, filter_midia_queryset
+from ..permissions import can_delete_records, can_edit_object, profile_role
 from datetime import datetime
 
 @login_required
@@ -16,10 +16,7 @@ def pagina_pesquisa_midias(request):
 @login_required
 def pesquisar_midias(request):
     query = request.GET.get("q", "").strip()
-    resultados = filter_midia_queryset(
-        request.user,
-        FotoVideoNavio.objects.select_related("navio", "navio__criado_por"),
-    )
+    resultados = FotoVideoNavio.objects.select_related("navio", "navio__criado_por")
 
     if query:
         filtros = (
@@ -46,6 +43,7 @@ def pesquisar_midias(request):
 
     data = []
     for midia in resultados:
+        criador = midia.navio.criado_por
         data.append({
             "id": midia.id,
             "arquivo": midia.arquivo.url,
@@ -58,8 +56,16 @@ def pesquisar_midias(request):
             "armador": getattr(midia.navio, "armador", "---"),
             "inicio": midia.navio.inicio_operacao.strftime("%d/%m/%Y %H:%M") if midia.navio.inicio_operacao else None,
             "fim": midia.navio.fim_operacao.strftime("%d/%m/%Y %H:%M") if midia.navio.fim_operacao else None,
+            "cadastrado_por": _display_user(criador),
+            "perfil_cadastro": profile_role(criador) if criador else "sem perfil",
             "can_edit": can_edit_object(request.user, midia.navio),
             "can_delete": can_delete_records(request.user),
         })
 
     return JsonResponse({"resultados": data})
+
+
+def _display_user(user):
+    if not user:
+        return "Nao informado"
+    return user.get_full_name() or user.username

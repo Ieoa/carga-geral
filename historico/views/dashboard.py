@@ -3,13 +3,13 @@ from django.utils import timezone
 from datetime import timedelta
 from ..models import Navio, FotoVideoNavio
 from django.contrib.auth.decorators import login_required
-from ..permissions import filter_midia_queryset, filter_owned_queryset
+from ..permissions import profile_role
 #from ..utils.scraping_praticagem_reduzido import get_navios_cargo_reduzido
 
 @login_required
 def dashboard_view(request):
-    navios = filter_owned_queryset(request.user, Navio.objects.all())
-    midias_base = filter_midia_queryset(request.user, FotoVideoNavio.objects.all())
+    navios = Navio.objects.select_related("criado_por")
+    midias_base = FotoVideoNavio.objects.select_related("navio", "navio__criado_por")
 
     # Total de navios
     total_navios = navios.count()
@@ -20,7 +20,14 @@ def dashboard_view(request):
     total_navios_30d = navios.filter(eta__gte=trinta_dias_atras).count()
 
     # Últimos 5 navios cadastrados
-    ultimos_navios = navios.order_by("-id")[:5]
+    ultimos_navios = []
+    for navio in navios.order_by("-id")[:5]:
+        criador = navio.criado_por
+        ultimos_navios.append({
+            "navio": navio,
+            "criado_por_nome": _display_user(criador),
+            "criado_por_perfil": profile_role(criador) if criador else "sem perfil",
+        })
     # Gráfico de materiais por tipo (últimos 30 dias)
     midias = (
         midias_base
@@ -50,3 +57,9 @@ def dashboard_view(request):
 
 
     return render(request, "historico/dashboard.html", context)
+
+
+def _display_user(user):
+    if not user:
+        return "Nao informado"
+    return user.get_full_name() or user.username
