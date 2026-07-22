@@ -31,7 +31,7 @@ O projeto tem duas areas principais:
 1. Clone o repositorio:
 
 ```bash
-git clone https://github.com/Ieoa/carga-geral.git
+git clone URL_DO_REPOSITORIO_GITLAB
 cd carga-geral
 ```
 
@@ -72,13 +72,21 @@ PUBLIC_BASE_URL=
 python manage.py migrate
 ```
 
-6. Crie um superusuario para acessar o admin:
+6. Prepare as contas locais de demonstracao:
 
 ```bash
-python manage.py createsuperuser
+python manage.py criar_usuarios_demo
 ```
 
-Novos colaboradores recebem uma senha temporaria aleatoria e devem altera-la no primeiro acesso. Para reprovisionar um acesso existente, execute `python manage.py provisionar_acesso MATRICULA`.
+O terminal exibira uma senha temporaria para cada perfil:
+
+- `admin_demo`: acesso administrativo completo.
+- `gestor_demo`: acesso de gestor aos registros operacionais.
+- `comum_demo`: acesso de colaborador aos proprios registros.
+
+As senhas nao ficam gravadas no repositorio e devem ser alteradas no primeiro acesso. O comando funciona somente com `DEBUG=True`; execute-o novamente para renovar as credenciais da demonstracao.
+
+Novos colaboradores cadastrados pelo administrador tambem recebem uma senha temporaria aleatoria. Para reprovisionar um acesso existente, execute `python manage.py provisionar_acesso MATRICULA`.
 
 7. Inicie o servidor:
 

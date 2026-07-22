@@ -1,12 +1,13 @@
 from pathlib import Path
 from io import StringIO
 import os
+import re
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import requests
 from django.contrib.auth.models import User
-from django.core.management import call_command
+from django.core.management import call_command, CommandError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
@@ -83,6 +84,34 @@ class AccessSecurityTests(TestCase):
         self.assertFalse(user.check_password('senha-antiga'))
         self.assertTrue(access.must_change_password)
         self.assertIn('Senha temporária:', output.getvalue())
+
+    @override_settings(DEBUG=True)
+    def test_demo_command_creates_all_profiles_with_temporary_passwords(self):
+        output = StringIO()
+
+        call_command('criar_usuarios_demo', stdout=output)
+
+        text = output.getvalue()
+        expected_profiles = {
+            'admin_demo': (True, True, None),
+            'gestor_demo': (False, False, 'GER'),
+            'comum_demo': (False, False, 'AUX'),
+        }
+        for username, (is_staff, is_superuser, cargo) in expected_profiles.items():
+            user = User.objects.get(username=username)
+            password_match = re.search(rf'^{username} \| ([^| ]+) \|', text, re.MULTILINE)
+            self.assertIsNotNone(password_match)
+            self.assertTrue(user.check_password(password_match.group(1)))
+            self.assertTrue(user.access_control.must_change_password)
+            self.assertEqual(user.is_staff, is_staff)
+            self.assertEqual(user.is_superuser, is_superuser)
+            if cargo:
+                self.assertEqual(user.estoque_colaborador.cargo, cargo)
+
+    @override_settings(DEBUG=False)
+    def test_demo_command_is_blocked_in_production(self):
+        with self.assertRaisesMessage(CommandError, 'DEBUG=True'):
+            call_command('criar_usuarios_demo')
 
 
 class DesktopLauncherSecurityTests(SimpleTestCase):
