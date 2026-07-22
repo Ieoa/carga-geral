@@ -74,8 +74,7 @@ sequenceDiagram
 ## Decisoes tecnicas
 
 - Django foi escolhido por integrar ORM, autenticacao, templates, admin e estrutura modular.
-- SQLite foi mantido para facilitar instalacao local e demonstracao academica.
+- SQLite foi mantido para facilitar instalacao local e operacao offline controlada.
 - O uso de `DATABASE_URL` permite migrar para PostgreSQL em producao.
 - Arquivos estaticos foram mantidos localmente para permitir uso offline.
 - PyInstaller foi usado para distribuir o sistema como `.exe`, reduzindo dependencia de instalacao manual de Python no computador do usuario.
-

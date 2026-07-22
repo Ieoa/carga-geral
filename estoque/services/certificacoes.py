@@ -13,6 +13,7 @@ def certificados_para_notificar(queryset=None, referencia=None):
 
     return (
         queryset.filter(
+            ativa=True,
             notificar_por_email=True,
             data_vencimento__gte=referencia,
             data_vencimento__lte=limite,

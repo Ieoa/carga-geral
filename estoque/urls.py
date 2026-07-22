@@ -22,6 +22,8 @@ urlpatterns = [
     path('qrcode/ler/', views.ler_qrcode, name='ler_qrcode'),
     path('dashboard/equipamentos/estoque/', views.estoque_resumido, name='estoque_resumido'),
     path('dashboard/certificados/', views.listar_certificados, name='listar_certificados'),
+    path('dashboard/certificados/<int:pk>/editar/', views.editar_certificacao, name='editar_certificacao'),
+    path('dashboard/certificados/<int:pk>/renovar/', views.renovar_certificacao, name='renovar_certificacao'),
     path('autocomplete/equipamento/', views.autocomplete_equipamento, name='autocomplete_equipamento'),
     path('dashboard/estoque/detalhado/<str:nome_equipamento>/', views.estoque_detalhado, name='estoque_detalhado'),
     

@@ -1,0 +1,52 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}{% if modo == 'renovar' %}Renovar{% else %}Editar{% endif %} certificado{% endblock %}
+{% block module_title %}Certificados{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">{% if modo == 'renovar' %}Renovar certificado{% else %}Editar certificado{% endif %}</h1>
+      <p class="text-muted mb-0">{{ certificado.equipamento.equipamento }} · {{ certificado.equipamento.identificador }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'estoque:listar_certificados' %}">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  {% if modo == 'renovar' %}
+  <div class="alert alert-info">
+    A renovação criará um novo registro e preservará o certificado atual no histórico.
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    {% csrf_token %}
+    <div class="card-body">
+      <div class="row g-3">
+        {% for field in form %}
+        <div class="{% if field.name == 'detalhes' %}col-12{% else %}col-md-6{% endif %}">
+          {% if field.field.widget.input_type == 'checkbox' %}
+          <div class="form-check form-switch mt-4">
+            {{ field }}
+            <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          </div>
+          {% else %}
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% endif %}
+          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% for error in form.non_field_errors %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endfor %}
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{% url 'estoque:listar_certificados' %}">Cancelar</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-check-lg me-1"></i>{% if modo == 'renovar' %}Registrar renovação{% else %}Salvar alterações{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

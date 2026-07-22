@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Validar se as principais funcionalidades do sistema atendem aos requisitos definidos para o TCC, garantindo cadastro, consulta, rastreabilidade e funcionamento local.
+Validar se as principais funcionalidades do sistema atendem aos requisitos operacionais, garantindo cadastro, consulta, rastreabilidade e funcionamento local.
 
 ## Testes funcionais manuais
 
@@ -39,9 +39,9 @@ Validar se as principais funcionalidades do sistema atendem aos requisitos defin
 .\build_windows.ps1
 ```
 
-## Evidencias para a monografia
+## Evidencias de validacao
 
-Durante a apresentacao do TCC, recomenda-se registrar:
+Durante a homologacao, recomenda-se registrar:
 
 - Prints do dashboard de historico.
 - Prints do cadastro de navio.
@@ -51,4 +51,3 @@ Durante a apresentacao do TCC, recomenda-se registrar:
 - Exemplo de relatorio PDF.
 - Resultado do comando `manage.py check`.
 - Evidencia do executavel Windows em funcionamento.
-

@@ -47,26 +47,6 @@ class Colaborador(models.Model):
     def __str__(self):
         return f"{self.nome} {self.sobrenome} ({self.matricula})"
 
-    def save(self, *args, **kwargs):
-        # Se for um novo Colaborador (não existe no banco)
-        if not self.pk:
-            # Limpa o CPF (remove pontos e traço)
-            cpf_limpo = ''.join(filter(str.isdigit, self.cpf))
-            senha = cpf_limpo[:6]  # Primeiros 6 dígitos
-
-            # Cria o User associado
-            user = User.objects.create_user(
-                username=self.matricula,
-                email=self.email,
-                password=senha,
-                first_name=self.nome,
-                last_name=self.sobrenome
-            )
-            self.user = user  # Associa o User ao Colaborador
-
-        # Chama o método save original para salvar o Colaborador
-        super().save(*args, **kwargs)
-
 # Sinal para atualizar o User quando o Colaborador for atualizado
 @receiver(post_save, sender=Colaborador)
 def update_user_for_colaborador(sender, instance, **kwargs):
@@ -80,6 +60,16 @@ def update_user_for_colaborador(sender, instance, **kwargs):
         instance.user.first_name = instance.nome
         instance.user.last_name = instance.sobrenome
         instance.user.save()
+
+
+class UserAccess(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='access_control')
+    must_change_password = models.BooleanField(default=False)
+    temporary_password_created_at = models.DateTimeField(null=True, blank=True)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Controle de acesso de {self.user.username}"
         
         
         

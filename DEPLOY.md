@@ -128,14 +128,12 @@ O sistema ja tem cadastro de usuarios por colaborador:
 - Historico: `/colaboradores/cadastrar/`
 - Estoque: `/estoque/dashboard/cadastrar-colaborador/`
 
-Nos dois fluxos, a matricula vira o login. A senha inicial e gerada pelos 6 primeiros digitos do CPF.
+Nos dois fluxos, a matricula vira o login. O sistema gera uma senha temporaria aleatoria, exibida uma unica vez ao administrador, e exige sua alteracao no primeiro acesso.
 
-## Primeiro acesso local confirmado
+Para reprovisionar um usuario existente:
 
-No banco SQLite local deste projeto, o usuario `admin` foi mantido como superusuario e a senha foi alterada para:
-
-```text
-Admin2110
+```bash
+python manage.py provisionar_acesso MATRICULA
 ```
 
-A senha antiga `admin` nao autentica mais.
+Credenciais reais nunca devem ser registradas neste documento ou no historico do Git.

@@ -10,7 +10,7 @@ urlpatterns = [
     path("estoque/", include(("estoque.urls", "estoque"), namespace="estoque")),
 ]
 
-if settings.DEBUG:
+if settings.DEBUG or settings.DESKTOP_MODE:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Handler de erro personalizado

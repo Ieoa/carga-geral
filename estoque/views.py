@@ -5,15 +5,14 @@ Organizado seguindo boas práticas Pythonicas com imports agrupados e comentári
 
 # Standard Library
 import json
-import re
 
 # Django
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.db import transaction
 from django.db.models import Q, Sum, Max
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,10 +20,16 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 
 # Local Apps
-from .forms import ColaboradorForm, EquipamentoForm
+from .forms import (
+    CertificacaoEdicaoForm,
+    CertificacaoRenovacaoForm,
+    ColaboradorForm,
+    EquipamentoForm,
+)
 from .models import Certificacao, Colaborador, Equipamento
 from historico.audit import diff, log_action, snapshot
-from historico.permissions import can_manage_users, filter_owned_queryset, is_manager
+from historico.permissions import can_edit_object, can_manage_users, filter_owned_queryset, is_manager
+from historico.security import create_user_with_temporary_password
 from .services.certificacoes import certificados_para_notificar, enviar_avisos_certificados
 
 
@@ -68,17 +73,11 @@ def cadastrar_colaborador(request):
                 colaborador = form.save(commit=False)
                 nomes = colaborador.nome.strip().split()
                 
-                # Gera senha a partir dos 6 primeiros dígitos do CPF
-                cpf_numeros = re.sub(r'[^0-9]', '', colaborador.cpf)
-                senha = cpf_numeros[:6]
-                
-                # Cria usuário Django associado
-                user = User.objects.create_user(
+                user, temporary_password = create_user_with_temporary_password(
                     username=colaborador.matricula,
                     email=colaborador.email,
                     first_name=nomes[0],
                     last_name=' '.join(nomes[1:]) if len(nomes) > 1 else '',
-                    password=senha
                 )
                 
                 # Completa e salva o colaborador
@@ -87,7 +86,11 @@ def cadastrar_colaborador(request):
                 colaborador.save()
                 log_action(request.user, colaborador, "create", snapshot(colaborador))
                 
-                messages.success(request, 'Colaborador cadastrado com sucesso!')
+                messages.success(
+                    request,
+                    f'Colaborador cadastrado. Senha temporária: {temporary_password} '
+                    '(ela será exibida somente agora e deverá ser alterada no primeiro acesso).',
+                )
                 return redirect('estoque:cadastrar_colaborador')
                 
             except Exception as e:
@@ -345,12 +348,13 @@ def listar_certificados(request):
     certificados_base = Certificacao.objects.filter(
         equipamento__in=equipamentos_visiveis
     ).select_related('equipamento', 'criado_por')
+    certificados_ativos = certificados_base.filter(ativa=True)
 
     if request.method == 'POST':
         acao = request.POST.get('acao')
 
         if acao == 'salvar_notificacao':
-            certificado = get_object_or_404(certificados_base, pk=request.POST.get('certificado_id'))
+            certificado = get_object_or_404(certificados_ativos, pk=request.POST.get('certificado_id'))
             ativar = request.POST.get('notificar_por_email') == 'on'
             email = request.POST.get('email_notificacao', '').strip()
 
@@ -389,7 +393,7 @@ def listar_certificados(request):
                 messages.error(request, 'Somente gestores podem executar a verificação de avisos.')
                 return redirect('estoque:listar_certificados')
 
-            resultado = enviar_avisos_certificados(certificados_base)
+            resultado = enviar_avisos_certificados(certificados_ativos)
             if resultado['erros']:
                 messages.warning(
                     request,
@@ -403,19 +407,20 @@ def listar_certificados(request):
     hoje = timezone.localdate()
     limite_alerta = Certificacao.adicionar_meses(hoje, 3)
     resumo = {
-        'total': certificados_base.count(),
-        'vencidos': certificados_base.filter(data_vencimento__lt=hoje).count(),
-        'proximos': certificados_base.filter(
+        'total': certificados_ativos.count(),
+        'vencidos': certificados_ativos.filter(data_vencimento__lt=hoje).count(),
+        'proximos': certificados_ativos.filter(
             data_vencimento__gte=hoje,
             data_vencimento__lte=limite_alerta,
         ).count(),
-        'validos': certificados_base.filter(data_vencimento__gt=limite_alerta).count(),
-        'avisos_pendentes': certificados_para_notificar(certificados_base, hoje).count(),
+        'validos': certificados_ativos.filter(data_vencimento__gt=limite_alerta).count(),
+        'avisos_pendentes': certificados_para_notificar(certificados_ativos, hoje).count(),
     }
 
     busca = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
-    certificados = certificados_base
+    exibir_historico = request.GET.get('historico') == '1' or status == 'substituido'
+    certificados = certificados_base if exibir_historico else certificados_ativos
 
     if busca:
         certificados = certificados.filter(
@@ -437,8 +442,10 @@ def listar_certificados(request):
         certificados = certificados.filter(data_vencimento__gt=limite_alerta)
     elif status == 'sem_vencimento':
         certificados = certificados.filter(data_vencimento__isnull=True)
+    elif status == 'substituido':
+        certificados = certificados.filter(ativa=False)
 
-    certificados = certificados.order_by('data_vencimento', 'equipamento__equipamento')
+    certificados = certificados.order_by('-ativa', 'data_vencimento', 'equipamento__equipamento')
     pagina = Paginator(certificados, 20).get_page(request.GET.get('page'))
 
     return render(request, 'estoque/certificacao_lista.html', {
@@ -446,6 +453,92 @@ def listar_certificados(request):
         'busca': busca,
         'status': status,
         'resumo': resumo,
+        'exibir_historico': exibir_historico,
+    })
+
+
+@login_required
+def editar_certificacao(request, pk):
+    equipamentos_visiveis = filter_owned_queryset(request.user, Equipamento.objects.all())
+    certificado = get_object_or_404(
+        Certificacao.objects.select_related('equipamento').filter(equipamento__in=equipamentos_visiveis),
+        pk=pk,
+        ativa=True,
+    )
+    if not can_edit_object(request.user, certificado):
+        messages.error(request, 'Você não tem permissão para editar este certificado.')
+        return redirect('estoque:listar_certificados')
+
+    before = snapshot(certificado)
+    vencimento_anterior = certificado.data_vencimento
+    form = CertificacaoEdicaoForm(request.POST or None, request.FILES or None, instance=certificado)
+    if request.method == 'POST' and form.is_valid():
+        certificado = form.save(commit=False)
+        certificado.atualizado_por = request.user
+        if vencimento_anterior != certificado.data_vencimento:
+            certificado.notificacao_enviada_em = None
+            certificado.vencimento_notificado = None
+        certificado.save()
+        changes = diff(before, snapshot(certificado))
+        if changes:
+            log_action(request.user, certificado, 'update', changes)
+        messages.success(request, 'Certificado atualizado com sucesso.')
+        return redirect('estoque:listar_certificados')
+
+    return render(request, 'estoque/certificacao_form.html', {
+        'form': form,
+        'certificado': certificado,
+        'modo': 'editar',
+    })
+
+
+@login_required
+def renovar_certificacao(request, pk):
+    equipamentos_visiveis = filter_owned_queryset(request.user, Equipamento.objects.all())
+    certificado = get_object_or_404(
+        Certificacao.objects.select_related('equipamento').filter(
+            equipamento__in=equipamentos_visiveis,
+            ativa=True,
+        ),
+        pk=pk,
+    )
+    if not can_edit_object(request.user, certificado):
+        messages.error(request, 'Você não tem permissão para renovar este certificado.')
+        return redirect('estoque:listar_certificados')
+
+    initial = {
+        'nome_certificado': certificado.nome_certificado,
+        'empresa_certificadora': certificado.empresa_certificadora,
+        'detalhes': certificado.detalhes,
+        'notificar_por_email': certificado.notificar_por_email,
+        'email_notificacao': certificado.email_notificacao,
+    }
+    form = CertificacaoRenovacaoForm(request.POST or None, request.FILES or None, initial=initial)
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            nova_certificacao = form.save(commit=False)
+            nova_certificacao.equipamento = certificado.equipamento
+            nova_certificacao.certificacao_anterior = certificado
+            nova_certificacao.criado_por = request.user
+            nova_certificacao.atualizado_por = request.user
+            nova_certificacao.ativa = True
+            nova_certificacao.save()
+
+            before = snapshot(certificado)
+            certificado.ativa = False
+            certificado.atualizado_por = request.user
+            certificado.notificar_por_email = False
+            certificado.save(update_fields=['ativa', 'atualizado_por', 'notificar_por_email'])
+            log_action(request.user, certificado, 'update', diff(before, snapshot(certificado)))
+            log_action(request.user, nova_certificacao, 'create', snapshot(nova_certificacao))
+
+        messages.success(request, 'Certificado renovado. O documento anterior foi preservado no histórico.')
+        return redirect('estoque:listar_certificados')
+
+    return render(request, 'estoque/certificacao_form.html', {
+        'form': form,
+        'certificado': certificado,
+        'modo': 'renovar',
     })
     
 

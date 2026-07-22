@@ -49,14 +49,6 @@ class ColaboradorForm(forms.ModelForm):
     
     def clean_matricula(self):
         matricula = self.cleaned_data.get('matricula')
-        if User.objects.filter(username=matricula).exists():
-            raise forms.ValidationError("Esta matrícula já está em uso.")
-        if Colaborador.objects.filter(matricula=matricula).exclude(pk=self.instance.pk if self.instance else None).exists():
-            raise forms.ValidationError("Esta matrícula já está cadastrada.")
-        return matricula
-    
-    def clean_matricula(self):
-        matricula = self.cleaned_data.get('matricula')
 
         # Ignorar o user vinculado se for edição
         if self.instance and self.instance.user:
@@ -115,6 +107,17 @@ class CertificacaoForm(forms.ModelForm):
             'notificar_por_email': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'email_notificacao': forms.EmailInput(attrs={'class': 'form-control'}),
         }
+        labels = {
+            'nome_certificado': 'Nome do certificado',
+            'data_certificacao': 'Data de emissão',
+            'data_vencimento': 'Data de vencimento',
+            'empresa_certificadora': 'Empresa certificadora',
+            'codigo_certificado': 'Código do certificado',
+            'detalhes': 'Detalhes',
+            'anexo': 'Documento PDF',
+            'notificar_por_email': 'Notificar por e-mail',
+            'email_notificacao': 'E-mail para notificação',
+        }
 
     def clean(self):
         cleaned_data = super().clean()
@@ -122,7 +125,25 @@ class CertificacaoForm(forms.ModelForm):
             self.add_error('email_notificacao', 'Informe o e-mail que receberá o aviso.')
         if cleaned_data.get('notificar_por_email') and not cleaned_data.get('data_vencimento'):
             self.add_error('data_vencimento', 'Informe o vencimento para ativar o aviso.')
+        data_certificacao = cleaned_data.get('data_certificacao')
+        data_vencimento = cleaned_data.get('data_vencimento')
+        if data_certificacao and data_vencimento and data_vencimento < data_certificacao:
+            self.add_error('data_vencimento', 'O vencimento não pode ser anterior à emissão.')
         return cleaned_data
+
+    def clean_anexo(self):
+        anexo = self.cleaned_data.get('anexo')
+        if anexo and getattr(anexo, 'size', 0) > 10 * 1024 * 1024:
+            raise forms.ValidationError('O certificado deve ter no máximo 10 MB.')
+        return anexo
+
+
+class CertificacaoEdicaoForm(CertificacaoForm):
+    pass
+
+
+class CertificacaoRenovacaoForm(CertificacaoForm):
+    pass
 
 CertificacaoFormSet = inlineformset_factory(
     Equipamento,

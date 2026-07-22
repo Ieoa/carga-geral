@@ -78,6 +78,8 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+Novos colaboradores recebem uma senha temporaria aleatoria e devem altera-la no primeiro acesso. Para reprovisionar um acesso existente, execute `python manage.py provisionar_acesso MATRICULA`.
+
 7. Inicie o servidor:
 
 ```bash
@@ -162,7 +164,9 @@ python manage.py check --deploy
 
 ## Avisos de certificados
 
-Cada certificado pode ter um destinatario e o aviso por e-mail ativado. O sistema envia uma unica notificacao quando o vencimento entra na janela de tres meses e libera um novo envio se a data de vencimento for alterada.
+Cada certificado pode ser editado ou renovado. A renovacao cria um novo registro e mantem o documento anterior disponivel no historico para rastreabilidade.
+
+Tambem e possivel definir um destinatario e ativar o aviso por e-mail. O sistema envia uma unica notificacao quando o vencimento entra na janela de tres meses e libera um novo envio se a data de vencimento for alterada.
 
 Configure as variaveis `EMAIL_*` do arquivo `.env.production.example` e agende a execucao diaria:
 
@@ -171,6 +175,10 @@ python manage.py notificar_certificados
 ```
 
 No Windows, o comando pode ser cadastrado no Agendador de Tarefas. Em Linux, use cron ou um timer do systemd.
+
+## Verificacoes automatizadas
+
+O repositorio possui pipelines para GitHub Actions e GitLab CI. Elas verificam configuracao, migracoes pendentes e testes automatizados a cada envio de codigo.
 
 ## Executavel Windows
 

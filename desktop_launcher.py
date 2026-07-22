@@ -1,4 +1,5 @@
 import os
+import secrets
 import shutil
 import socket
 import sqlite3
@@ -149,10 +150,27 @@ def find_free_port(start_port=DEFAULT_PORT):
     raise RuntimeError("Nenhuma porta local livre encontrada entre 8000 e 8049.")
 
 
-def configure_environment(db_path, media_path):
+def load_or_create_secret_key(data_dir):
+    secret_path = data_dir / 'secret_key.txt'
+    if secret_path.exists():
+        secret_key = secret_path.read_text(encoding='utf-8').strip()
+        if len(secret_key) >= 50:
+            return secret_key
+
+    secret_key = secrets.token_urlsafe(64)
+    secret_path.write_text(secret_key, encoding='utf-8')
+    try:
+        secret_path.chmod(0o600)
+    except OSError:
+        pass
+    return secret_key
+
+
+def configure_environment(db_path, media_path, data_dir):
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-    os.environ.setdefault("DJANGO_SECRET_KEY", "local-desktop-secret-key-change-for-shared-installs-1234567890")
-    os.environ.setdefault("DEBUG", "True")
+    os.environ.setdefault("DJANGO_SECRET_KEY", load_or_create_secret_key(data_dir))
+    os.environ.setdefault("DEBUG", "False")
+    os.environ.setdefault("DESKTOP_MODE", "True")
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
     os.environ["MEDIA_ROOT"] = str(media_path)
     os.environ.setdefault("ALLOWED_HOSTS", f"{HOST},localhost")
@@ -193,7 +211,7 @@ def main():
     data_dir = app_data_dir()
     db_path, media_path = copy_initial_data(data_dir)
     port = find_free_port()
-    configure_environment(db_path, media_path)
+    configure_environment(db_path, media_path, data_dir)
     os.environ["PUBLIC_BASE_URL"] = f"http://{HOST}:{port}"
 
     migrate_database()

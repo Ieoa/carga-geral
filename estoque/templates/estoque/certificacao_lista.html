@@ -50,7 +50,7 @@
 
   <div class="certificate-toolbar">
     <form method="get" class="row g-2 align-items-end">
-      <div class="col-lg-7">
+      <div class="col-lg-6">
         <label for="certificate-search" class="form-label">Pesquisar</label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -58,7 +58,7 @@
                  placeholder="Certificado, código, empresa ou material">
         </div>
       </div>
-      <div class="col-sm-8 col-lg-3">
+      <div class="col-sm-7 col-lg-3">
         <label for="certificate-status" class="form-label">Situação</label>
         <select id="certificate-status" name="status" class="form-select">
           <option value="">Todas</option>
@@ -66,9 +66,17 @@
           <option value="vence_em_3_meses" {% if status == 'vence_em_3_meses' %}selected{% endif %}>Vencem em até 3 meses</option>
           <option value="valido" {% if status == 'valido' %}selected{% endif %}>Válidos</option>
           <option value="sem_vencimento" {% if status == 'sem_vencimento' %}selected{% endif %}>Sem vencimento</option>
+          <option value="substituido" {% if status == 'substituido' %}selected{% endif %}>Substituídos</option>
         </select>
       </div>
-      <div class="col-sm-4 col-lg-2 d-grid">
+      <div class="col-sm-5 col-lg-2">
+        <div class="form-check mt-4 pt-2">
+          <input class="form-check-input" type="checkbox" id="certificate-history" name="historico" value="1"
+                 {% if exibir_historico %}checked{% endif %}>
+          <label class="form-check-label" for="certificate-history">Incluir histórico</label>
+        </div>
+      </div>
+      <div class="col-lg-1 d-grid">
         <button type="submit" class="btn btn-outline-primary">Filtrar</button>
       </div>
     </form>
@@ -91,6 +99,7 @@
           <th>Vencimento</th>
           <th>Documento</th>
           <th>Aviso por e-mail</th>
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -115,7 +124,27 @@
             <span class="certificate-secondary">Sem anexo</span>
             {% endif %}
           </td>
-          <td>{% include 'estoque/partials/certificacao_notificacao_form.html' %}</td>
+          <td>
+            {% if cert.ativa %}
+              {% include 'estoque/partials/certificacao_notificacao_form.html' %}
+            {% else %}
+              <span class="certificate-secondary">Documento substituído</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if cert.ativa %}
+            <div class="d-flex gap-1">
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'estoque:editar_certificacao' cert.pk %}" title="Editar certificado">
+                <i class="bi bi-pencil"></i><span class="visually-hidden">Editar certificado</span>
+              </a>
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:renovar_certificacao' cert.pk %}" title="Renovar certificado">
+                <i class="bi bi-arrow-repeat"></i><span class="visually-hidden">Renovar certificado</span>
+              </a>
+            </div>
+            {% else %}
+              <span class="certificate-secondary">Somente leitura</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -143,7 +172,19 @@
         <i class="bi bi-file-earmark-pdf"></i> Abrir certificado
       </a>
       {% endif %}
-      {% include 'estoque/partials/certificacao_notificacao_form.html' %}
+      {% if cert.ativa %}
+        {% include 'estoque/partials/certificacao_notificacao_form.html' %}
+      {% endif %}
+      {% if cert.ativa %}
+      <div class="d-flex gap-2 mt-3">
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'estoque:editar_certificacao' cert.pk %}">
+          <i class="bi bi-pencil me-1"></i>Editar
+        </a>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:renovar_certificacao' cert.pk %}">
+          <i class="bi bi-arrow-repeat me-1"></i>Renovar
+        </a>
+      </div>
+      {% endif %}
     </article>
     {% endfor %}
   </div>
@@ -152,11 +193,11 @@
   <nav class="mt-4" aria-label="Paginação dos certificados">
     <ul class="pagination justify-content-center">
       {% if certificados.has_previous %}
-      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&page={{ certificados.previous_page_number }}">Anterior</a></li>
+      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&historico={% if exibir_historico %}1{% endif %}&page={{ certificados.previous_page_number }}">Anterior</a></li>
       {% endif %}
       <li class="page-item active"><span class="page-link">{{ certificados.number }} de {{ certificados.paginator.num_pages }}</span></li>
       {% if certificados.has_next %}
-      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&page={{ certificados.next_page_number }}">Próxima</a></li>
+      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&historico={% if exibir_historico %}1{% endif %}&page={{ certificados.next_page_number }}">Próxima</a></li>
       {% endif %}
     </ul>
   </nav>

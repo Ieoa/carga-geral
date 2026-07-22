@@ -1,15 +1,13 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import RegexValidator
+from django.core.validators import FileExtensionValidator, RegexValidator
 from django.utils import timezone
 import qrcode
 from io import BytesIO
 from django.core.files import File
-from django.db import models
 from django.conf import settings
 from django.utils.timezone import now
 from django.urls import reverse
-import qrcode
 from pathlib import Path
 from urllib.parse import urljoin
 import calendar
@@ -157,7 +155,20 @@ class Certificacao(models.Model):
     empresa_certificadora = models.CharField(max_length=100)
     codigo_certificado = models.CharField(max_length=50)
     detalhes = models.TextField(blank=True, null=True)
-    anexo = models.FileField(upload_to=caminho_certificacao, null=True, blank=True)
+    anexo = models.FileField(
+        upload_to=caminho_certificacao,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['pdf'])],
+    )
+    ativa = models.BooleanField(default=True)
+    certificacao_anterior = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='renovacoes',
+    )
     notificar_por_email = models.BooleanField(default=False)
     email_notificacao = models.EmailField(blank=True, default='')
     notificacao_enviada_em = models.DateTimeField(null=True, blank=True)
@@ -168,6 +179,13 @@ class Certificacao(models.Model):
         null=True,
         blank=True,
         related_name="certificacoes_criadas",
+    )
+    atualizado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certificacoes_atualizadas',
     )
 
     def __str__(self):
@@ -182,6 +200,8 @@ class Certificacao(models.Model):
         return data.replace(year=ano, month=mes, day=dia)
 
     def status_vencimento_em(self, referencia=None):
+        if not self.ativa:
+            return 'substituido'
         referencia = referencia or timezone.localdate()
         if not self.data_vencimento:
             return 'sem_vencimento'
@@ -202,6 +222,7 @@ class Certificacao(models.Model):
             'vence_em_3_meses': 'Vence em até 3 meses',
             'valido': 'Válido',
             'sem_vencimento': 'Sem vencimento',
+            'substituido': 'Substituído',
         }[self.status_vencimento]
 
     @property
@@ -211,6 +232,7 @@ class Certificacao(models.Model):
             'vence_em_3_meses': 'warning',
             'valido': 'success',
             'sem_vencimento': 'secondary',
+            'substituido': 'dark',
         }[self.status_vencimento]
 
     @property

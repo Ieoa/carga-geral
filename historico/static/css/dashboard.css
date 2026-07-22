@@ -382,7 +382,12 @@ body {
 }
 
 .certificate-table {
-    min-width: 1050px;
+    min-width: 1090px;
+}
+
+.certificate-table th:last-child,
+.certificate-table td:last-child {
+    width: 88px;
 }
 
 .certificate-table th {

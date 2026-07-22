@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -196,3 +197,72 @@ class CertificacaoViewTests(TestCase):
         })
 
         self.assertContains(response, 'Ensaio de carga')
+
+    def test_edita_certificado_e_reabre_notificacao(self):
+        self.certificado.vencimento_notificado = self.certificado.data_vencimento
+        self.certificado.save(update_fields=['vencimento_notificado'])
+        nova_validade = Certificacao.adicionar_meses(timezone.localdate(), 5)
+
+        response = self.client.post(
+            reverse('estoque:editar_certificacao', args=[self.certificado.pk]),
+            {
+                'nome_certificado': self.certificado.nome_certificado,
+                'data_certificacao': self.certificado.data_certificacao,
+                'data_vencimento': nova_validade,
+                'empresa_certificadora': self.certificado.empresa_certificadora,
+                'codigo_certificado': 'EC-101',
+                'detalhes': 'Atualizado',
+                'email_notificacao': '',
+            },
+        )
+
+        self.assertRedirects(response, reverse('estoque:listar_certificados'))
+        self.certificado.refresh_from_db()
+        self.assertEqual(self.certificado.codigo_certificado, 'EC-101')
+        self.assertEqual(self.certificado.data_vencimento, nova_validade)
+        self.assertIsNone(self.certificado.vencimento_notificado)
+
+    def test_renovacao_preserva_certificado_anterior(self):
+        response = self.client.post(
+            reverse('estoque:renovar_certificacao', args=[self.certificado.pk]),
+            {
+                'nome_certificado': self.certificado.nome_certificado,
+                'data_certificacao': timezone.localdate(),
+                'data_vencimento': Certificacao.adicionar_meses(timezone.localdate(), 12),
+                'empresa_certificadora': self.certificado.empresa_certificadora,
+                'codigo_certificado': 'EC-RENOVADO',
+                'detalhes': 'Renovação anual',
+                'notificar_por_email': 'on',
+                'email_notificacao': 'avisos@empresa.com',
+            },
+        )
+
+        self.assertRedirects(response, reverse('estoque:listar_certificados'))
+        self.certificado.refresh_from_db()
+        renovado = Certificacao.objects.get(codigo_certificado='EC-RENOVADO')
+        self.assertFalse(self.certificado.ativa)
+        self.assertFalse(self.certificado.notificar_por_email)
+        self.assertEqual(renovado.certificacao_anterior, self.certificado)
+        self.assertTrue(renovado.ativa)
+
+        lista = self.client.get(reverse('estoque:listar_certificados'))
+        historico = self.client.get(reverse('estoque:listar_certificados'), {'historico': '1'})
+        self.assertNotContains(lista, 'EC-100')
+        self.assertContains(historico, 'EC-100')
+
+    def test_rejeita_anexo_de_certificado_que_nao_seja_pdf(self):
+        response = self.client.post(
+            reverse('estoque:editar_certificacao', args=[self.certificado.pk]),
+            {
+                'nome_certificado': self.certificado.nome_certificado,
+                'data_certificacao': self.certificado.data_certificacao,
+                'data_vencimento': self.certificado.data_vencimento,
+                'empresa_certificadora': self.certificado.empresa_certificadora,
+                'codigo_certificado': self.certificado.codigo_certificado,
+                'email_notificacao': '',
+                'anexo': SimpleUploadedFile('certificado.txt', b'conteudo', content_type='text/plain'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'extensão de arquivo “txt” não é permitida')
