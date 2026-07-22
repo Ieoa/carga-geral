@@ -10,7 +10,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Certificacao, Equipamento
+from historico.models import UserAccess
+
+from .models import Certificacao, Colaborador, Equipamento
 from .services.certificacoes import enviar_avisos_certificados
 
 
@@ -32,6 +34,88 @@ class EquipamentoQrCodeTests(TestCase):
             )
 
         make_qrcode.assert_called_once_with("https://app.example.com/estoque/dashboard/equipamentos/detalhe_equipamento/1/")
+
+
+class UserAccessFlowTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            'admin_qa', email='admin.qa@empresa.com', password='AdminQA!2026'
+        )
+        self.employee = User.objects.create_user(
+            'comum_qa', email='comum.qa@empresa.com', password='ComumQA!2026'
+        )
+        Colaborador.objects.create(
+            user=self.employee,
+            matricula='comum_qa',
+            nome='Usuario Comum QA',
+            email='comum.qa@empresa.com',
+            cpf='111.222.333-44',
+            area='OP',
+            cargo='AUX',
+        )
+
+    def test_admin_and_employee_can_log_in(self):
+        admin_response = self.client.post(reverse('login'), {
+            'matricula': 'admin_qa',
+            'senha': 'AdminQA!2026',
+        })
+        self.assertRedirects(admin_response, reverse('dashboard'))
+
+        self.client.logout()
+        employee_response = self.client.post(reverse('login'), {
+            'matricula': 'comum_qa',
+            'senha': 'ComumQA!2026',
+        })
+        self.assertRedirects(employee_response, reverse('dashboard'))
+
+    def test_anonymous_and_employee_cannot_create_accounts(self):
+        registration_url = reverse('estoque:cadastrar_colaborador')
+        anonymous_response = self.client.get(registration_url)
+        self.assertRedirects(
+            anonymous_response,
+            f"{reverse('login')}?next={registration_url}",
+        )
+
+        self.client.force_login(self.employee)
+        employee_response = self.client.get(registration_url)
+        self.assertRedirects(employee_response, reverse('estoque:dashboard'))
+
+    @patch('historico.security.generate_temporary_password', return_value='TemporariaQA!2026')
+    def test_admin_creates_account_and_new_user_changes_temporary_password(self, _password):
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse('estoque:cadastrar_colaborador'), {
+            'matricula': 'novo_qa',
+            'nome': 'Novo Usuario QA',
+            'email': 'novo.qa@empresa.com',
+            'cpf': '555.666.777-88',
+            'area': 'MAT',
+            'cargo': 'OPR1',
+        })
+
+        self.assertRedirects(response, reverse('estoque:cadastrar_colaborador'))
+        new_user = User.objects.get(username='novo_qa')
+        self.assertTrue(new_user.check_password('TemporariaQA!2026'))
+        self.assertTrue(new_user.access_control.must_change_password)
+
+        self.client.logout()
+        login_response = self.client.post(reverse('login'), {
+            'matricula': 'novo_qa',
+            'senha': 'TemporariaQA!2026',
+        })
+        self.assertEqual(login_response.status_code, 302)
+        self.assertEqual(login_response.url, reverse('dashboard'))
+        self.assertRedirects(self.client.get(reverse('dashboard')), reverse('alterar_senha'))
+
+        change_response = self.client.post(reverse('alterar_senha'), {
+            'old_password': 'TemporariaQA!2026',
+            'new_password1': 'NovaSenhaQA!2026Segura',
+            'new_password2': 'NovaSenhaQA!2026Segura',
+        })
+        self.assertRedirects(change_response, reverse('dashboard'))
+        new_user.refresh_from_db()
+        access = UserAccess.objects.get(user=new_user)
+        self.assertTrue(new_user.check_password('NovaSenhaQA!2026Segura'))
+        self.assertFalse(access.must_change_password)
 
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
