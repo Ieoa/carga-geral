@@ -102,6 +102,7 @@ class CertificacaoForm(forms.ModelForm):
         fields = [
             'nome_certificado', 'data_certificacao', 'data_vencimento',
             'empresa_certificadora', 'codigo_certificado', 'detalhes', 'anexo',
+            'notificar_por_email', 'email_notificacao',
         ]
         widgets = {
             'nome_certificado': forms.TextInput(attrs={'class': 'form-control'}),
@@ -111,7 +112,17 @@ class CertificacaoForm(forms.ModelForm):
             'codigo_certificado': forms.TextInput(attrs={'class': 'form-control'}),
             'detalhes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'anexo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'notificar_por_email': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'email_notificacao': forms.EmailInput(attrs={'class': 'form-control'}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('notificar_por_email') and not cleaned_data.get('email_notificacao'):
+            self.add_error('email_notificacao', 'Informe o e-mail que receberá o aviso.')
+        if cleaned_data.get('notificar_por_email') and not cleaned_data.get('data_vencimento'):
+            self.add_error('data_vencimento', 'Informe o vencimento para ativar o aviso.')
+        return cleaned_data
 
 CertificacaoFormSet = inlineformset_factory(
     Equipamento,

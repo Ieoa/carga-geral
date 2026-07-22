@@ -202,6 +202,17 @@
             <label class="form-label">Detalhes</label>
             <textarea class="form-control" id="cert_detalhes" rows="3"></textarea>
           </div>
+          <div class="col-12 mt-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="cert_notificar_email">
+              <label class="form-check-label" for="cert_notificar_email">Notificar por e-mail três meses antes do vencimento</label>
+            </div>
+          </div>
+          <div class="col-12 mb-2">
+            <label class="form-label" for="cert_email_notificacao">E-mail para o aviso</label>
+            <input type="email" class="form-control" id="cert_email_notificacao"
+                   value="{{ request.user.email }}" placeholder="email@empresa.com">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -343,6 +354,8 @@
     document.getElementById('cert_codigo').value = '';
     document.getElementById('cert_detalhes').value = '';
     document.getElementById('cert_anexo').value = ''; // Limpa o input de arquivo
+    document.getElementById('cert_notificar_email').checked = false;
+    document.getElementById('cert_email_notificacao').value = '{{ request.user.email|escapejs }}';
   }
 
   // Função para adicionar certificado
@@ -354,10 +367,17 @@
     const codigo = document.getElementById("cert_codigo").value.trim();
     const detalhes = document.getElementById("cert_detalhes").value.trim();
     const anexo = document.getElementById("cert_anexo").files[0]; // Pega o objeto File
+    const notificar = document.getElementById("cert_notificar_email").checked;
+    const email = document.getElementById("cert_email_notificacao").value.trim();
 
     // Validação
-    if (!nome || !empresa) {
-      alert("Preencha pelo menos o nome e a empresa certificadora.");
+    if (!nome || !empresa || !data) {
+      alert("Preencha o nome, a empresa certificadora e a data de certificação.");
+      return;
+    }
+
+    if (notificar && (!vencimento || !email)) {
+      alert("Para ativar o aviso, informe a data de vencimento e o e-mail destinatário.");
       return;
     }
 
@@ -369,6 +389,8 @@
       vencimento, 
       codigo, 
       detalhes, 
+      notificar,
+      email,
       anexo: anexo // Armazena o objeto File diretamente
     };
     
@@ -394,6 +416,7 @@
       info.innerHTML = `
         <strong>${cert.nome}</strong><br>
         <small class="text-muted">${cert.empresa} ${cert.data ? '- ' + cert.data : ''} ${cert.anexo ? `(Anexo: ${cert.anexo.name})` : ''}</small>
+        ${cert.notificar ? '<br><small class="text-success"><i class="bi bi-bell"></i> Aviso por e-mail ativado</small>' : ''}
       `;
       
       const btnRemover = document.createElement("button");
@@ -471,4 +494,3 @@
 
 </script>
 {% endblock %}
-

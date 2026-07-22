@@ -65,18 +65,11 @@
                 <td>{{ cert.empresa_certificadora }}</td>
                 <td>{{ cert.data_certificacao|date:'d/m/Y' }}</td>
                 <td>
-  {% if cert.data_vencimento %}
-    {% if cert.data_vencimento < today %}
-      <span class="badge bg-danger">Vencido: {{ cert.data_vencimento|date:'d/m/Y' }}</span>
-    {% elif cert.data_vencimento <= today|add:"30" %}
-      <span class="badge bg-warning text-dark">Vence em breve: {{ cert.data_vencimento|date:'d/m/Y' }}</span>
-    {% else %}
-      <span class="badge bg-success">Válido: {{ cert.data_vencimento|date:'d/m/Y' }}</span>
-    {% endif %}
-  {% else %}
-    <span class="text-muted">Não informado</span>
-  {% endif %}
-</td>
+                  <span class="badge text-bg-{{ cert.classe_status_vencimento }}">{{ cert.rotulo_status_vencimento }}</span>
+                  {% if cert.data_vencimento %}
+                    <small class="d-block mt-1">{{ cert.data_vencimento|date:'d/m/Y' }}</small>
+                  {% endif %}
+                </td>
                 <td>{{ cert.codigo_certificado }}</td>
                 <td>
                   {% if cert.anexo %}

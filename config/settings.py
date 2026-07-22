@@ -151,6 +151,18 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = config("MEDIA_ROOT", default=os.path.join(BASE_DIR, 'media'))
 PUBLIC_BASE_URL = config("PUBLIC_BASE_URL", default="")
 
+# E-mail. O backend de console facilita testes locais; em produção, configure SMTP via ambiente.
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Carga Geral <nao-responda@cargageral.local>")
+
 # Production security toggles. Keep these false in local HTTP development and true behind HTTPS.
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
@@ -171,3 +183,5 @@ AUTHENTICATION_BACKENDS = [
     # Backend padrão (para admin e outros)
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+LOGIN_URL = 'login'

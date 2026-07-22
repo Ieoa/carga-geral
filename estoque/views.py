@@ -12,6 +12,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db.models import Q, Sum, Max
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,7 +24,8 @@ from django.core.paginator import Paginator
 from .forms import ColaboradorForm, EquipamentoForm
 from .models import Certificacao, Colaborador, Equipamento
 from historico.audit import diff, log_action, snapshot
-from historico.permissions import can_manage_users, filter_owned_queryset
+from historico.permissions import can_manage_users, filter_owned_queryset, is_manager
+from .services.certificacoes import certificados_para_notificar, enviar_avisos_certificados
 
 
 class CustomLoginView(LoginView):
@@ -195,6 +198,8 @@ def cadastrar_equipamento(request):
                     codigo_certificado=cert_data.get('codigo'),
                     detalhes=cert_data.get('detalhes'),
                     anexo=anexo_file,
+                    notificar_por_email=bool(cert_data.get('notificar')),
+                    email_notificacao=cert_data.get('email', '').strip(),
                     criado_por=request.user,
                 )
                 log_action(request.user, certificacao, "create", snapshot(certificacao))
@@ -276,6 +281,7 @@ def estoque_resumido(request):
 
         total_certificados = 0
         total_validos = 0
+        total_vencidos = 0
         total_sem_certificado = 0
         foto = None
         primeiro_registro = None
@@ -284,7 +290,12 @@ def estoque_resumido(request):
             certificacoes = reg.certificacoes.all()
             qtd_certificados = certificacoes.count()
             total_certificados += qtd_certificados
-            total_validos += sum(1 for c in certificacoes if c.data_vencimento and c.data_vencimento >= hoje)
+            total_validos += sum(
+                1
+                for c in certificacoes
+                if c.status_vencimento_em(hoje) in {'valido', 'vence_em_3_meses'}
+            )
+            total_vencidos += sum(1 for c in certificacoes if c.status_vencimento_em(hoje) == 'vencido')
             if qtd_certificados == 0:
                 total_sem_certificado += 1
             if not foto and reg.foto:
@@ -298,7 +309,7 @@ def estoque_resumido(request):
             'foto': foto,
             'total_certificado': total_certificados,
             'total_valido': total_validos,
-            'total_vencido': total_certificados - total_validos,
+            'total_vencido': total_vencidos,
             'total_sem_certificado': total_sem_certificado,
             'registro': primeiro_registro.registro if primeiro_registro else None
         })
@@ -325,6 +336,116 @@ def estoque_detalhado(request, nome_equipamento):
         'nome_equipamento': nome_equipamento,
         'equipamentos': equipamentos,
         'today': timezone.now().date()
+    })
+
+
+@login_required
+def listar_certificados(request):
+    equipamentos_visiveis = filter_owned_queryset(request.user, Equipamento.objects.all())
+    certificados_base = Certificacao.objects.filter(
+        equipamento__in=equipamentos_visiveis
+    ).select_related('equipamento', 'criado_por')
+
+    if request.method == 'POST':
+        acao = request.POST.get('acao')
+
+        if acao == 'salvar_notificacao':
+            certificado = get_object_or_404(certificados_base, pk=request.POST.get('certificado_id'))
+            ativar = request.POST.get('notificar_por_email') == 'on'
+            email = request.POST.get('email_notificacao', '').strip()
+
+            if ativar and not certificado.data_vencimento:
+                messages.error(request, 'Informe uma data de vencimento antes de ativar o aviso.')
+                return redirect('estoque:listar_certificados')
+
+            if ativar:
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    messages.error(request, 'Informe um endereço de e-mail válido para ativar o aviso.')
+                    return redirect('estoque:listar_certificados')
+
+            before = snapshot(certificado)
+            email_alterado = certificado.email_notificacao != email
+            certificado.notificar_por_email = ativar
+            certificado.email_notificacao = email
+            if ativar and email_alterado:
+                certificado.notificacao_enviada_em = None
+                certificado.vencimento_notificado = None
+            certificado.save(update_fields=[
+                'notificar_por_email',
+                'email_notificacao',
+                'notificacao_enviada_em',
+                'vencimento_notificado',
+            ])
+            changes = diff(before, snapshot(certificado))
+            if changes:
+                log_action(request.user, certificado, 'update', changes)
+            messages.success(request, 'Preferências de notificação atualizadas.')
+            return redirect('estoque:listar_certificados')
+
+        if acao == 'enviar_notificacoes':
+            if not is_manager(request.user):
+                messages.error(request, 'Somente gestores podem executar a verificação de avisos.')
+                return redirect('estoque:listar_certificados')
+
+            resultado = enviar_avisos_certificados(certificados_base)
+            if resultado['erros']:
+                messages.warning(
+                    request,
+                    f"{resultado['enviados']} aviso(s) enviado(s) e "
+                    f"{len(resultado['erros'])} envio(s) com erro.",
+                )
+            else:
+                messages.success(request, f"{resultado['enviados']} aviso(s) enviado(s).")
+            return redirect('estoque:listar_certificados')
+
+    hoje = timezone.localdate()
+    limite_alerta = Certificacao.adicionar_meses(hoje, 3)
+    resumo = {
+        'total': certificados_base.count(),
+        'vencidos': certificados_base.filter(data_vencimento__lt=hoje).count(),
+        'proximos': certificados_base.filter(
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=limite_alerta,
+        ).count(),
+        'validos': certificados_base.filter(data_vencimento__gt=limite_alerta).count(),
+        'avisos_pendentes': certificados_para_notificar(certificados_base, hoje).count(),
+    }
+
+    busca = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    certificados = certificados_base
+
+    if busca:
+        certificados = certificados.filter(
+            Q(nome_certificado__icontains=busca)
+            | Q(codigo_certificado__icontains=busca)
+            | Q(empresa_certificadora__icontains=busca)
+            | Q(equipamento__equipamento__icontains=busca)
+            | Q(equipamento__identificador__icontains=busca)
+        )
+
+    if status == 'vencido':
+        certificados = certificados.filter(data_vencimento__lt=hoje)
+    elif status == 'vence_em_3_meses':
+        certificados = certificados.filter(
+            data_vencimento__gte=hoje,
+            data_vencimento__lte=limite_alerta,
+        )
+    elif status == 'valido':
+        certificados = certificados.filter(data_vencimento__gt=limite_alerta)
+    elif status == 'sem_vencimento':
+        certificados = certificados.filter(data_vencimento__isnull=True)
+
+    certificados = certificados.order_by('data_vencimento', 'equipamento__equipamento')
+    pagina = Paginator(certificados, 20).get_page(request.GET.get('page'))
+
+    return render(request, 'estoque/certificacao_lista.html', {
+        'certificados': pagina,
+        'busca': busca,
+        'status': status,
+        'resumo': resumo,
     })
     
 

@@ -7,28 +7,14 @@ O projeto tem duas areas principais:
 - Historico de navios: cadastro de navios, midias, documentos e relatorios em PDF.
 - Estoque: cadastro de colaboradores, equipamentos, QR Codes e certificacoes.
 
-## Contexto academico
+## Documentacao tecnica
 
-Este projeto tambem foi organizado como artefato pratico de TCC, com foco no desenvolvimento de um sistema de informacao para gestao de historico de navios e controle de materiais em terminais portuarios.
-
-Problema central do trabalho:
-
-> Como desenvolver um sistema computacional capaz de organizar o historico de navios e controlar materiais operacionais em um terminal portuario, melhorando a rastreabilidade, a consulta de informacoes e o apoio a tomada de decisao?
-
-Objetivo geral:
-
-> Desenvolver um sistema de informacao para gerenciamento do historico de navios de carga geral e controle de materiais em um terminal portuario.
-
-Documentacao tecnica para apoio ao TCC:
-
-- [Visao geral do TCC](docs/visao_geral_tcc.md)
 - [Requisitos do sistema](docs/requisitos.md)
 - [Casos de uso](docs/casos_de_uso.md)
 - [Modelo de dados](docs/modelo_de_dados.md)
 - [Arquitetura](docs/arquitetura.md)
 - [Plano de testes](docs/plano_de_testes.md)
 - [Manual do usuario](docs/manual_do_usuario.md)
-- [Roteiro para evoluir a monografia](docs/roteiro_monografia.md)
 
 ## Tecnologias
 
@@ -109,7 +95,7 @@ python manage.py runserver
 ```text
 carga-geral/
 |-- config/          # Configuracoes principais do Django
-|-- docs/            # Documentacao tecnica e academica do TCC
+|-- docs/            # Documentacao tecnica do sistema
 |-- historico/       # App de historico de navios, midias e PDFs
 |-- estoque/         # App de estoque, equipamentos e certificacoes
 |-- static/          # Arquivos estaticos globais
@@ -132,9 +118,9 @@ carga-geral/
 - A consulta auxiliar da Praticagem salva um cache em `media/cache/praticagem_navios.json`. Sem internet, o sistema usa o ultimo cache disponivel.
 - Para transportar uma instalacao offline completa, leve junto o banco `db.sqlite3` e a pasta `media/`, pois eles contem os dados e uploads locais.
 
-## Evidencias para apresentacao
+## Validacao funcional
 
-Para apresentar o sistema como TCC, recomenda-se demonstrar:
+Para validar os principais fluxos do sistema, recomenda-se verificar:
 
 - Cadastro de navio com dados operacionais.
 - Upload e consulta de midias/documentos.
@@ -145,7 +131,7 @@ Para apresentar o sistema como TCC, recomenda-se demonstrar:
 - Registro de auditoria das acoes.
 - Execucao local por `HistoricoNavios.exe`.
 
-As evidencias podem ser associadas aos requisitos descritos em [docs/requisitos.md](docs/requisitos.md) e ao plano de testes em [docs/plano_de_testes.md](docs/plano_de_testes.md).
+Os resultados podem ser associados aos requisitos descritos em [docs/requisitos.md](docs/requisitos.md) e ao plano de testes em [docs/plano_de_testes.md](docs/plano_de_testes.md).
 
 ## Deploy online
 
@@ -173,6 +159,18 @@ python manage.py migrate
 python manage.py collectstatic --noinput
 python manage.py check --deploy
 ```
+
+## Avisos de certificados
+
+Cada certificado pode ter um destinatario e o aviso por e-mail ativado. O sistema envia uma unica notificacao quando o vencimento entra na janela de tres meses e libera um novo envio se a data de vencimento for alterada.
+
+Configure as variaveis `EMAIL_*` do arquivo `.env.production.example` e agende a execucao diaria:
+
+```bash
+python manage.py notificar_certificados
+```
+
+No Windows, o comando pode ser cadastrado no Agendador de Tarefas. Em Linux, use cron ou um timer do systemd.
 
 ## Executavel Windows
 

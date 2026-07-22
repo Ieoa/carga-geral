@@ -12,6 +12,7 @@ from django.urls import reverse
 import qrcode
 from pathlib import Path
 from urllib.parse import urljoin
+import calendar
 
 class Colaborador(models.Model):
     user = models.OneToOneField(
@@ -157,6 +158,10 @@ class Certificacao(models.Model):
     codigo_certificado = models.CharField(max_length=50)
     detalhes = models.TextField(blank=True, null=True)
     anexo = models.FileField(upload_to=caminho_certificacao, null=True, blank=True)
+    notificar_por_email = models.BooleanField(default=False)
+    email_notificacao = models.EmailField(blank=True, default='')
+    notificacao_enviada_em = models.DateTimeField(null=True, blank=True)
+    vencimento_notificado = models.DateField(null=True, blank=True)
     criado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -167,6 +172,52 @@ class Certificacao(models.Model):
 
     def __str__(self):
         return f"{self.nome_certificado} - {self.equipamento}"
+
+    @staticmethod
+    def adicionar_meses(data, meses):
+        mes = data.month - 1 + meses
+        ano = data.year + mes // 12
+        mes = mes % 12 + 1
+        dia = min(data.day, calendar.monthrange(ano, mes)[1])
+        return data.replace(year=ano, month=mes, day=dia)
+
+    def status_vencimento_em(self, referencia=None):
+        referencia = referencia or timezone.localdate()
+        if not self.data_vencimento:
+            return 'sem_vencimento'
+        if self.data_vencimento < referencia:
+            return 'vencido'
+        if self.data_vencimento <= self.adicionar_meses(referencia, 3):
+            return 'vence_em_3_meses'
+        return 'valido'
+
+    @property
+    def status_vencimento(self):
+        return self.status_vencimento_em()
+
+    @property
+    def rotulo_status_vencimento(self):
+        return {
+            'vencido': 'Vencido',
+            'vence_em_3_meses': 'Vence em até 3 meses',
+            'valido': 'Válido',
+            'sem_vencimento': 'Sem vencimento',
+        }[self.status_vencimento]
+
+    @property
+    def classe_status_vencimento(self):
+        return {
+            'vencido': 'danger',
+            'vence_em_3_meses': 'warning',
+            'valido': 'success',
+            'sem_vencimento': 'secondary',
+        }[self.status_vencimento]
+
+    @property
+    def dias_para_vencimento(self):
+        if not self.data_vencimento:
+            return None
+        return (self.data_vencimento - timezone.localdate()).days
     
     
   

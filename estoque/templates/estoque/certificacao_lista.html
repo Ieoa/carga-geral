@@ -1,0 +1,172 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}Certificados{% endblock %}
+{% block module_title %}Certificados{% endblock %}
+
+{% block content %}
+<div class="certificate-page mx-auto">
+  <div class="certificate-heading">
+    <div>
+      <h1>Certificados</h1>
+      <p>Documentos, validade e avisos dos materiais cadastrados.</p>
+    </div>
+    {% if is_manager_profile %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="enviar_notificacoes">
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-envelope-check me-1"></i> Verificar avisos
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="certificate-metrics" aria-label="Resumo dos certificados">
+    <div class="certificate-metric">
+      <span>Total</span>
+      <strong>{{ resumo.total }}</strong>
+    </div>
+    <div class="certificate-metric metric-danger">
+      <span>Vencidos</span>
+      <strong>{{ resumo.vencidos }}</strong>
+    </div>
+    <div class="certificate-metric metric-warning">
+      <span>Até 3 meses</span>
+      <strong>{{ resumo.proximos }}</strong>
+    </div>
+    <div class="certificate-metric metric-success">
+      <span>Válidos</span>
+      <strong>{{ resumo.validos }}</strong>
+    </div>
+  </div>
+
+  <div class="certificate-toolbar">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-lg-7">
+        <label for="certificate-search" class="form-label">Pesquisar</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input id="certificate-search" name="q" value="{{ busca }}" class="form-control"
+                 placeholder="Certificado, código, empresa ou material">
+        </div>
+      </div>
+      <div class="col-sm-8 col-lg-3">
+        <label for="certificate-status" class="form-label">Situação</label>
+        <select id="certificate-status" name="status" class="form-select">
+          <option value="">Todas</option>
+          <option value="vencido" {% if status == 'vencido' %}selected{% endif %}>Vencidos</option>
+          <option value="vence_em_3_meses" {% if status == 'vence_em_3_meses' %}selected{% endif %}>Vencem em até 3 meses</option>
+          <option value="valido" {% if status == 'valido' %}selected{% endif %}>Válidos</option>
+          <option value="sem_vencimento" {% if status == 'sem_vencimento' %}selected{% endif %}>Sem vencimento</option>
+        </select>
+      </div>
+      <div class="col-sm-4 col-lg-2 d-grid">
+        <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+      </div>
+    </form>
+  </div>
+
+  {% if resumo.avisos_pendentes %}
+  <div class="certificate-alert-summary">
+    <i class="bi bi-bell"></i>
+    <span><strong>{{ resumo.avisos_pendentes }}</strong> aviso(s) habilitado(s) aguardando envio.</span>
+  </div>
+  {% endif %}
+
+  {% if certificados %}
+  <div class="certificate-desktop table-responsive">
+    <table class="table certificate-table mb-0">
+      <thead>
+        <tr>
+          <th>Certificado e material</th>
+          <th>Emissão</th>
+          <th>Vencimento</th>
+          <th>Documento</th>
+          <th>Aviso por e-mail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cert in certificados %}
+        <tr>
+          <td>
+            <strong>{{ cert.nome_certificado }}</strong>
+            <span class="certificate-secondary">{{ cert.equipamento.equipamento }} · {{ cert.equipamento.identificador }}</span>
+            <span class="certificate-secondary">{{ cert.empresa_certificadora }} · {{ cert.codigo_certificado|default:'Sem código' }}</span>
+          </td>
+          <td>{{ cert.data_certificacao|date:'d/m/Y' }}</td>
+          <td>
+            <span class="badge text-bg-{{ cert.classe_status_vencimento }}">{{ cert.rotulo_status_vencimento }}</span>
+            <span class="certificate-secondary">{{ cert.data_vencimento|date:'d/m/Y'|default:'Não informado' }}</span>
+          </td>
+          <td>
+            {% if cert.anexo %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ cert.anexo.url }}" target="_blank" rel="noopener">
+              <i class="bi bi-file-earmark-pdf"></i> Abrir
+            </a>
+            {% else %}
+            <span class="certificate-secondary">Sem anexo</span>
+            {% endif %}
+          </td>
+          <td>{% include 'estoque/partials/certificacao_notificacao_form.html' %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="certificate-mobile">
+    {% for cert in certificados %}
+    <article class="certificate-item">
+      <div class="certificate-item-header">
+        <div>
+          <h2>{{ cert.nome_certificado }}</h2>
+          <p>{{ cert.equipamento.equipamento }} · {{ cert.equipamento.identificador }}</p>
+        </div>
+        <span class="badge text-bg-{{ cert.classe_status_vencimento }}">{{ cert.rotulo_status_vencimento }}</span>
+      </div>
+      <dl class="certificate-details">
+        <div><dt>Empresa</dt><dd>{{ cert.empresa_certificadora }}</dd></div>
+        <div><dt>Código</dt><dd>{{ cert.codigo_certificado|default:'Não informado' }}</dd></div>
+        <div><dt>Emissão</dt><dd>{{ cert.data_certificacao|date:'d/m/Y' }}</dd></div>
+        <div><dt>Vencimento</dt><dd>{{ cert.data_vencimento|date:'d/m/Y'|default:'Não informado' }}</dd></div>
+      </dl>
+      {% if cert.anexo %}
+      <a class="btn btn-sm btn-outline-secondary mb-3" href="{{ cert.anexo.url }}" target="_blank" rel="noopener">
+        <i class="bi bi-file-earmark-pdf"></i> Abrir certificado
+      </a>
+      {% endif %}
+      {% include 'estoque/partials/certificacao_notificacao_form.html' %}
+    </article>
+    {% endfor %}
+  </div>
+
+  {% if certificados.has_other_pages %}
+  <nav class="mt-4" aria-label="Paginação dos certificados">
+    <ul class="pagination justify-content-center">
+      {% if certificados.has_previous %}
+      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&page={{ certificados.previous_page_number }}">Anterior</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ certificados.number }} de {{ certificados.paginator.num_pages }}</span></li>
+      {% if certificados.has_next %}
+      <li class="page-item"><a class="page-link" href="?q={{ busca|urlencode }}&status={{ status }}&page={{ certificados.next_page_number }}">Próxima</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="certificate-empty">
+    <i class="bi bi-patch-check"></i>
+    <h2>Nenhum certificado encontrado</h2>
+    <p>Revise os filtros ou adicione um certificado no cadastro do material.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

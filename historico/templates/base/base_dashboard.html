@@ -55,6 +55,11 @@
                         <i class="bi bi-plus-circle"></i> Cadastrar Material
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'estoque:listar_certificados' %}">
+                        <i class="bi bi-patch-check"></i> Certificados
+                    </a>
+                </li>
                 {% if can_manage_users %}
                 <li class="menu-divider"></li>
                 <li>

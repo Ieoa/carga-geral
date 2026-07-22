@@ -21,6 +21,7 @@ urlpatterns = [
     path('dashboard/equipamentos/listar_equipamentos', views.listar_equipamentos, name='listar_equipamentos'),
     path('qrcode/ler/', views.ler_qrcode, name='ler_qrcode'),
     path('dashboard/equipamentos/estoque/', views.estoque_resumido, name='estoque_resumido'),
+    path('dashboard/certificados/', views.listar_certificados, name='listar_certificados'),
     path('autocomplete/equipamento/', views.autocomplete_equipamento, name='autocomplete_equipamento'),
     path('dashboard/estoque/detalhado/<str:nome_equipamento>/', views.estoque_detalhado, name='estoque_detalhado'),
     
