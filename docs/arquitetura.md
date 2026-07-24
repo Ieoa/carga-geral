@@ -58,7 +58,7 @@ sequenceDiagram
     participant U as Usuario
     participant EXE as HistoricoNavios.exe
     participant DJ as Django local
-    participant DB as SQLite local
+    participant DB as MySQL
     participant NAV as Navegador
 
     U->>EXE: Executa o arquivo
@@ -74,7 +74,7 @@ sequenceDiagram
 ## Decisoes tecnicas
 
 - Django foi escolhido por integrar ORM, autenticacao, templates, admin e estrutura modular.
-- SQLite foi mantido para facilitar instalacao local e operacao offline controlada.
-- O uso de `DATABASE_URL` permite migrar para PostgreSQL em producao.
+- MySQL e usado como banco relacional compartilhado em todos os ambientes.
+- A conexao e fornecida por `DATABASE_URL`; credenciais nao devem ser versionadas.
 - Arquivos estaticos foram mantidos localmente para permitir uso offline.
 - PyInstaller foi usado para distribuir o sistema como `.exe`, reduzindo dependencia de instalacao manual de Python no computador do usuario.

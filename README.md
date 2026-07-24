@@ -20,7 +20,7 @@ O projeto tem duas areas principais:
 
 - Python 3.12 ou superior
 - Django 5.2.5
-- SQLite para desenvolvimento local
+- MySQL 8.0 ou superior
 - ReportLab para geracao de PDFs
 - qrcode e Pillow para QR Codes e imagens
 - requests e BeautifulSoup para consulta/scraping auxiliar
@@ -60,19 +60,27 @@ pip install -r requirements.txt
 ```env
 DJANGO_SECRET_KEY=uma_chave_secreta_grande_e_unica
 DEBUG=True
-DATABASE_URL=sqlite:///db.sqlite3
+DATABASE_URL=mysql://historico_navios:sua_senha@127.0.0.1:3306/historico_navios
 ALLOWED_HOSTS=127.0.0.1,localhost
 CSRF_TRUSTED_ORIGINS=
 PUBLIC_BASE_URL=
 ```
 
-5. Aplique as migrations:
+5. Crie o banco e o usuario no MySQL:
+
+```sql
+CREATE DATABASE historico_navios CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'historico_navios'@'localhost' IDENTIFIED BY 'sua_senha';
+GRANT ALL PRIVILEGES ON historico_navios.* TO 'historico_navios'@'localhost';
+```
+
+6. Aplique as migrations:
 
 ```bash
 python manage.py migrate
 ```
 
-6. Prepare as contas locais de demonstracao:
+7. Prepare as contas locais de demonstracao:
 
 ```bash
 python manage.py criar_usuarios_demo
@@ -88,7 +96,7 @@ As senhas nao ficam gravadas no repositorio e devem ser alteradas no primeiro ac
 
 Novos colaboradores cadastrados pelo administrador tambem recebem uma senha temporaria aleatoria. Para reprovisionar um acesso existente, execute `python manage.py provisionar_acesso MATRICULA`.
 
-7. Inicie o servidor:
+8. Inicie o servidor:
 
 ```bash
 python manage.py runserver
@@ -116,9 +124,9 @@ carga-geral/
 
 ## Observacoes de seguranca
 
-- Nao versione `.env`, `db.sqlite3`, `media/` ou `venv/`.
+- Nao versione `.env`, exportacoes do banco, `media/` ou `venv/`.
 - Em producao, use `DEBUG=False`, configure `ALLOWED_HOSTS` com o dominio real e use uma `DJANGO_SECRET_KEY` forte.
-- Para producao, prefira PostgreSQL ou outro banco gerenciado em vez de SQLite.
+- Em producao, prefira uma instancia MySQL gerenciada e mantenha backups automatizados.
 - Configure `PUBLIC_BASE_URL` com a URL publica do sistema para que QR Codes apontem para o dominio online correto.
 - Configure HTTPS no provedor e ative `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True` e `SECURE_HSTS_SECONDS=31536000`.
 
@@ -126,7 +134,7 @@ carga-geral/
 
 - As bibliotecas de interface usadas pelas telas ficam em `static/vendor/`, entao Bootstrap, Bootstrap Icons, jQuery, DataTables, Chart.js e html5-qrcode nao dependem de CDN.
 - A consulta auxiliar da Praticagem salva um cache em `media/cache/praticagem_navios.json`. Sem internet, o sistema usa o ultimo cache disponivel.
-- Para transportar uma instalacao offline completa, leve junto o banco `db.sqlite3` e a pasta `media/`, pois eles contem os dados e uploads locais.
+- O sistema requer acesso ao servidor MySQL. A pasta `media/` ainda deve ser copiada ou disponibilizada em armazenamento compartilhado.
 
 ## Validacao funcional
 
@@ -150,7 +158,7 @@ Variaveis minimas recomendadas:
 ```env
 DJANGO_SECRET_KEY=gere-uma-chave-longa-e-aleatoria
 DEBUG=False
-DATABASE_URL=postgres://usuario:senha@host:5432/banco
+DATABASE_URL=mysql://usuario:senha@host:3306/historico_navios
 ALLOWED_HOSTS=seudominio.com,www.seudominio.com
 CSRF_TRUSTED_ORIGINS=https://seudominio.com,https://www.seudominio.com
 PUBLIC_BASE_URL=https://seudominio.com
@@ -209,4 +217,4 @@ Como usar em outra maquina Windows:
 3. O sistema cria os dados locais em `%LOCALAPPDATA%\HistoricoNavios`.
 4. O navegador abre automaticamente em `http://127.0.0.1:8000/` ou na proxima porta livre.
 
-Na primeira execucao, o executavel copia o banco `db.sqlite3` e a pasta `media` embutidos como dados iniciais. Depois disso, cada maquina usa sua propria pasta local em `%LOCALAPPDATA%\HistoricoNavios`.
+O executavel usa a conexao MySQL definida em `DATABASE_URL`. A pasta de midias continua em `%LOCALAPPDATA%\HistoricoNavios`, salvo se `MEDIA_ROOT` for configurado.
