@@ -7,10 +7,24 @@ on:
 jobs:
   django:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: historico_navios
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_ROOT_HOST: "%"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     env:
       DEBUG: "True"
       DJANGO_SECRET_KEY: ci-only-secret-key
-      DATABASE_URL: sqlite:///ci.sqlite3
+      DATABASE_URL: mysql://root@127.0.0.1:3306/historico_navios
       SECURE_SSL_REDIRECT: "False"
       SESSION_COOKIE_SECURE: "False"
       CSRF_COOKIE_SECURE: "False"

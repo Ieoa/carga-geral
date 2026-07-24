@@ -22,8 +22,8 @@ package_datas, package_binaries, package_hiddenimports = merge_collect_all(
     'chardet',
     'decouple',
     'dj_database_url',
+    'MySQLdb',
     'PIL',
-    'psycopg',
     'qrcode',
     'reportlab',
     'requests',
@@ -40,7 +40,6 @@ project_datas = [
     ('static', 'static'),
     ('staticfiles', 'staticfiles'),
     ('media', 'media'),
-    ('db.sqlite3', '.'),
 ]
 
 project_hiddenimports = [

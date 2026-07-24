@@ -128,7 +128,8 @@ class DesktopLauncherSecurityTests(SimpleTestCase):
         with TemporaryDirectory() as temp_dir:
             data_dir = Path(temp_dir)
             with patch.dict(os.environ, {}, clear=True):
-                configure_environment(data_dir / 'db.sqlite3', data_dir / 'media', data_dir)
+                os.environ['DATABASE_URL'] = 'mysql://usuario:senha@localhost:3306/historico_navios'
+                configure_environment(data_dir / 'media', data_dir)
 
                 self.assertEqual(os.environ['DEBUG'], 'False')
                 self.assertEqual(os.environ['DESKTOP_MODE'], 'True')

@@ -86,10 +86,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
     'default': dj_database_url.parse(
-        config("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+        config(
+            "DATABASE_URL",
+            default="mysql://historico_navios:troque-a-senha@127.0.0.1:3306/historico_navios",
+        ),
         conn_max_age=600,
     )
 }
+if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"].setdefault("charset", "utf8mb4")
 
 
 # Password validation

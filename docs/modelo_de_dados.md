@@ -96,7 +96,6 @@ erDiagram
 ## Observacoes sobre persistencia
 
 - O sistema utiliza o ORM do Django para manipular as tabelas.
-- Em ambiente local, o banco padrao e SQLite.
-- Para ambiente de producao, o projeto aceita configuracao por `DATABASE_URL`, permitindo PostgreSQL.
+- O banco padrao do projeto e MySQL 8.0 ou superior.
+- A conexao e configurada por `DATABASE_URL`, no formato `mysql://usuario:senha@host:3306/banco`.
 - Arquivos enviados pelo usuario sao armazenados na pasta de midia configurada por `MEDIA_ROOT`.
-

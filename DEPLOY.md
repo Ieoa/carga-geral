@@ -1,13 +1,13 @@
 # Deploy do Historico de Navios
 
-Este projeto e uma aplicacao Django. Para acessar por dominio na empresa, publique como aplicacao web em um servidor com Python, banco PostgreSQL, HTTPS e um dominio apontando para o servidor.
+Este projeto e uma aplicacao Django. Para acessar por dominio na empresa, publique como aplicacao web em um servidor com Python, banco MySQL, HTTPS e um dominio apontando para o servidor.
 
 ## Opcao recomendada
 
 Use uma VPS Linux com:
 
 - Python 3.12+
-- PostgreSQL
+- MySQL 8.0 ou superior
 - Gunicorn
 - Nginx
 - Certbot/Let's Encrypt
@@ -25,7 +25,7 @@ Crie um `.env` de producao baseado em `.env.production.example`:
 ```env
 DJANGO_SECRET_KEY=gere-uma-chave-longa-e-unica
 DEBUG=False
-DATABASE_URL=postgres://usuario:senha@localhost:5432/historico_navios
+DATABASE_URL=mysql://usuario:senha@localhost:3306/historico_navios
 ALLOWED_HOSTS=historiconavios.suaempresa.com.br
 CSRF_TRUSTED_ORIGINS=https://historiconavios.suaempresa.com.br
 PUBLIC_BASE_URL=https://historiconavios.suaempresa.com.br
