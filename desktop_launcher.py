@@ -90,6 +90,7 @@ def migrate_database():
 
     django.setup()
     call_command("migrate", interactive=False, verbosity=0)
+    call_command("preparar_acesso_inicial", skip_migrate=True, verbosity=1)
 
 
 def open_browser_when_ready(url):

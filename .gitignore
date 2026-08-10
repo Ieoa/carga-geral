@@ -136,6 +136,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.*.example
 .envrc
 .venv
 env/
@@ -200,6 +203,12 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Artefatos locais gerados pelo Codex (nunca versionar)
+**/.codex/
+**/.codex-*/
+**/codex/
+**/codex-*/
 
 # Marimo
 marimo/_static/
