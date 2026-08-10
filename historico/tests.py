@@ -113,6 +113,35 @@ class AccessSecurityTests(TestCase):
         with self.assertRaisesMessage(CommandError, 'DEBUG=True'):
             call_command('criar_usuarios_demo')
 
+    def test_initial_setup_creates_one_random_admin_and_is_idempotent(self):
+        first_output = StringIO()
+        second_output = StringIO()
+
+        call_command(
+            'preparar_acesso_inicial',
+            skip_migrate=True,
+            stdout=first_output,
+        )
+        user = User.objects.get(username='admin_inicial')
+        password_match = re.search(
+            r'^Senha temporaria: (.+)$',
+            first_output.getvalue(),
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(password_match)
+        self.assertTrue(user.check_password(password_match.group(1)))
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.access_control.must_change_password)
+
+        call_command(
+            'preparar_acesso_inicial',
+            skip_migrate=True,
+            stdout=second_output,
+        )
+        self.assertEqual(User.objects.filter(username='admin_inicial').count(), 1)
+        self.assertIn('senha preservada', second_output.getvalue())
+
 
 class DesktopLauncherSecurityTests(SimpleTestCase):
     def test_secret_key_is_unique_and_persisted_per_installation(self):

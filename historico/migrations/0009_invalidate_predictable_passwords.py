@@ -9,6 +9,14 @@ def invalidate_predictable_passwords(apps, schema_editor):
     HistoricoColaborador = apps.get_model('historico', 'Colaborador')
     EstoqueColaborador = apps.get_model('estoque', 'Colaborador')
 
+    # Alguns bancos legados tiveram a 0008 marcada com --fake e ficaram sem a
+    # tabela fisica. Recria antes de acessar UserAccess para que a migracao
+    # consiga prosseguir normalmente.
+    table_name = UserAccess._meta.db_table
+    existing_tables = set(schema_editor.connection.introspection.table_names())
+    if table_name not in existing_tables:
+        schema_editor.create_model(UserAccess)
+
     user_ids = set(
         HistoricoColaborador.objects.exclude(user_id=None).values_list('user_id', flat=True)
     )

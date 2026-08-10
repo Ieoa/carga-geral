@@ -28,6 +28,10 @@ O projeto tem duas areas principais:
 
 ## Como rodar localmente
 
+No Windows, depois de configurar o MySQL e o arquivo `.env`, a forma mais simples e executar
+`iniciar_local.bat`. O script instala as dependencias, aplica as migrations, verifica o banco,
+cria o administrador inicial quando necessario e abre o sistema no navegador.
+
 1. Clone o repositorio:
 
 ```bash
@@ -74,13 +78,22 @@ CREATE USER 'historico_navios'@'localhost' IDENTIFIED BY 'sua_senha';
 GRANT ALL PRIVILEGES ON historico_navios.* TO 'historico_navios'@'localhost';
 ```
 
-6. Aplique as migrations:
+6. Prepare o banco e o primeiro acesso administrativo:
 
 ```bash
-python manage.py migrate
+python manage.py preparar_acesso_inicial
+python manage.py verificar_banco
 ```
 
-7. Prepare as contas locais de demonstracao:
+O primeiro comando cria `admin_inicial` com uma senha temporaria aleatoria, exibida uma unica vez no
+terminal. Na segunda execucao, o usuario e a senha existentes sao preservados. Se for necessario
+redefinir a senha:
+
+```bash
+python manage.py provisionar_acesso admin_inicial
+```
+
+7. Opcionalmente, somente em desenvolvimento, prepare as contas de demonstracao:
 
 ```bash
 python manage.py criar_usuarios_demo
@@ -195,6 +208,46 @@ No Windows, o comando pode ser cadastrado no Agendador de Tarefas. Em Linux, use
 ## Verificacoes automatizadas
 
 O repositorio possui pipelines para GitHub Actions e GitLab CI. Elas verificam configuracao, migracoes pendentes e testes automatizados a cada envio de codigo.
+
+## Solucao para `historico_useraccess` inexistente
+
+A tabela e criada pela migration `historico/0008_useraccess`. Este repositorio tambem possui a
+migration de reparo `0010_ensure_useraccess_table`, para bancos onde a migration antiga foi marcada
+como aplicada sem a criacao fisica da tabela.
+
+Depois de atualizar o codigo, execute sempre nesta ordem:
+
+```bash
+python manage.py showmigrations historico
+python manage.py migrate
+python manage.py criar_usuarios_demo
+```
+
+Para uma vistoria automatica da conexao e das tabelas essenciais:
+
+```bash
+python manage.py verificar_banco
+```
+
+Nao use `--fake` para essas migrations. Antes de qualquer reparo em banco da empresa, gere backup.
+
+## Active Directory (opcional)
+
+O login do AD pode ser ativado por variaveis de ambiente. Solicite a TI da empresa: URL LDAPS,
+Base DN, DN e senha de uma conta de servico de leitura e o filtro de usuario. Exemplo:
+
+```env
+AD_AUTH_ENABLED=True
+AD_SERVER_URI=ldaps://ad.empresa.local:636
+AD_BIND_DN=CN=svc_loggeral,OU=Contas de Servico,DC=empresa,DC=local
+AD_BIND_PASSWORD=senha-da-conta-de-servico
+AD_USER_SEARCH_BASE=DC=empresa,DC=local
+AD_USER_FILTER=(sAMAccountName={username})
+```
+
+Usuarios autenticados no AD sao sincronizados com `auth_user`, mas nao recebem permissoes de
+administrador automaticamente. A conta local continua disponivel como contingencia enquanto o
+backend padrao estiver configurado.
 
 ## Executavel Windows
 

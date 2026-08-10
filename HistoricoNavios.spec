@@ -22,7 +22,8 @@ package_datas, package_binaries, package_hiddenimports = merge_collect_all(
     'chardet',
     'decouple',
     'dj_database_url',
-    'MySQLdb',
+    'pymysql',
+    'ldap3',
     'PIL',
     'qrcode',
     'reportlab',
@@ -45,6 +46,7 @@ project_datas = [
 project_hiddenimports = [
     'config.settings',
     'config.urls',
+    'config.auth_backends',
     'historico',
     'historico.apps',
     'historico.backends',

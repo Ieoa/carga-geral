@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db import connection
 
 from estoque.models import Colaborador
 from historico.security import issue_temporary_password
@@ -41,6 +42,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if not settings.DEBUG:
             raise CommandError('Este comando so pode ser executado com DEBUG=True.')
+
+        expected_table = 'historico_useraccess'
+        if expected_table not in connection.introspection.table_names():
+            raise CommandError(
+                f"A tabela {expected_table} ainda nao existe. "
+                "Execute 'python manage.py migrate' antes de criar os usuarios demo."
+            )
 
         credentials = []
         with transaction.atomic():

@@ -5,7 +5,8 @@ chardet==5.2.0
 dj-database-url==2.2.0
 gunicorn==22.0.0
 Pillow==10.4.0
-mysqlclient==2.2.7
+PyMySQL==1.1.1
+ldap3==2.9.1
 pyinstaller>=6.10
 python-decouple==3.8
 qrcode==7.4.2
