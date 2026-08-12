@@ -235,3 +235,4 @@ __marimo__/
 # EXCEÇÃO: incluir imagens do static/img
 !static/images/**
 !historico/static/images/**
+!static/vendor/jquery-ui/css/images/**

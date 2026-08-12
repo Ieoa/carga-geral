@@ -19,11 +19,17 @@ class Command(BaseCommand):
         engine = connection.settings_dict["ENGINE"]
         vendor = connection.vendor
         version = getattr(connection, "mysql_version", None)
+        host = connection.settings_dict.get("HOST") or "localhost"
+        port = connection.settings_dict.get("PORT") or "3306"
         self.stdout.write(f"Engine: {engine}")
         self.stdout.write(f"Vendor: {vendor}")
+        self.stdout.write(f"Servidor: {host}:{port}")
         if version:
             self.stdout.write(f"Versao: {version}")
         self.stdout.write(f"Tabelas encontradas: {len(tables)}")
+
+        if engine != "django.db.backends.mysql" or vendor != "mysql":
+            raise CommandError("O LOGGERAL deve usar obrigatoriamente um servidor MySQL.")
 
         required_tables = {
             "django_migrations",
