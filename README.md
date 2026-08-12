@@ -143,6 +143,68 @@ carga-geral/
 - Configure `PUBLIC_BASE_URL` com a URL publica do sistema para que QR Codes apontem para o dominio online correto.
 - Configure HTTPS no provedor e ative `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True` e `SECURE_HSTS_SECONDS=31536000`.
 
+## Homologacao na rede com MySQL remoto
+
+Para o teste corporativo, use tres papeis separados:
+
+- Servidor MySQL: hospeda somente o banco `historico_navios` na porta 3306.
+- Servidor LOGGERAL: executa Django/Waitress e atende a porta 8000.
+- Computadores dos usuarios: acessam o LOGGERAL apenas pelo navegador.
+
+Nos computadores dos usuarios nao e necessario instalar Python, Git ou MySQL.
+
+### 1. Preparar o acesso no servidor MySQL
+
+A TI deve permitir a porta 3306 somente a partir do IP do servidor LOGGERAL. No MySQL, crie
+uma conta limitada ao banco e ao host da aplicacao:
+
+```sql
+CREATE DATABASE historico_navios CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'historico_navios'@'IP_DO_SERVIDOR_LOGGERAL' IDENTIFIED BY 'SENHA_FORTE';
+GRANT ALL PRIVILEGES ON historico_navios.*
+    TO 'historico_navios'@'IP_DO_SERVIDOR_LOGGERAL';
+FLUSH PRIVILEGES;
+```
+
+No servidor LOGGERAL, valide a rota antes de instalar a aplicacao:
+
+```powershell
+Test-NetConnection NOME_OU_IP_DO_MYSQL -Port 3306
+```
+
+### 2. Configurar o servidor LOGGERAL
+
+Copie `.env.rede.example` para `.env` e substitua todos os valores de exemplo. Os campos
+principais sao:
+
+```env
+DEBUG=False
+SERVE_MEDIA_LOCALLY=True
+DATABASE_URL=mysql://historico_navios:SENHA@mysql-servidor.empresa.local:3306/historico_navios
+ALLOWED_HOSTS=127.0.0.1,localhost,loggeral-servidor,192.168.1.50
+PUBLIC_BASE_URL=http://192.168.1.50:8000
+```
+
+O IP em `PUBLIC_BASE_URL` deve ser fixo ou reservado no DHCP. Nao use `ALLOWED_HOSTS=*`.
+Se a senha do MySQL possuir caracteres reservados de URL, aplique a codificacao percentual.
+
+### 3. Iniciar a homologacao
+
+Execute `iniciar_rede.bat`. O script:
+
+1. instala as dependencias e o servidor Waitress;
+2. valida a configuracao de rede e exige um MySQL remoto;
+3. aplica as migrations e prepara `admin_inicial`;
+4. verifica as tabelas obrigatorias;
+5. coleta os arquivos estaticos;
+6. inicia o LOGGERAL em `0.0.0.0:8000`.
+
+A TI deve liberar a porta TCP 8000 no Firewall do Windows somente para a rede corporativa.
+Os usuarios acessam o endereco definido em `PUBLIC_BASE_URL`.
+
+O modo `SERVE_MEDIA_LOCALLY=True` existe para homologacao controlada. Para implantacao definitiva,
+use HTTPS e uma infraestrutura aprovada pela TI para servir e proteger os uploads.
+
 ## Uso offline
 
 - As bibliotecas de interface usadas pelas telas ficam em `static/vendor/`, entao Bootstrap, Bootstrap Icons, jQuery, DataTables, Chart.js e html5-qrcode nao dependem de CDN.

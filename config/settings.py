@@ -28,6 +28,7 @@ SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-local-developm
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool)
 DESKTOP_MODE = config("DESKTOP_MODE", default=False, cast=bool)
+SERVE_MEDIA_LOCALLY = config("SERVE_MEDIA_LOCALLY", default=False, cast=bool)
 
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="127.0.0.1,localhost", cast=Csv())
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())

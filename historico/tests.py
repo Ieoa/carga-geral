@@ -163,3 +163,125 @@ class DesktopLauncherSecurityTests(SimpleTestCase):
                 self.assertEqual(os.environ['DEBUG'], 'False')
                 self.assertEqual(os.environ['DESKTOP_MODE'], 'True')
                 self.assertGreaterEqual(len(os.environ['DJANGO_SECRET_KEY']), 50)
+
+
+class NetworkDeploymentSettingsTests(SimpleTestCase):
+    remote_database = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': 'historico_navios',
+            'USER': 'historico_navios',
+            'PASSWORD': 'nao-exibida',
+            'HOST': 'mysql-servidor.empresa.local',
+            'PORT': '3306',
+        }
+    }
+
+    @override_settings(
+        DEBUG=False,
+        SERVE_MEDIA_LOCALLY=True,
+        DATABASES=remote_database,
+        ALLOWED_HOSTS=['127.0.0.1', 'loggeral-servidor', '192.168.1.50'],
+        PUBLIC_BASE_URL='http://192.168.1.50:8000',
+        SECRET_KEY='chave-de-homologacao-segura-e-diferente-do-valor-padrao',
+        SECURE_SSL_REDIRECT=False,
+        SESSION_COOKIE_SECURE=False,
+        CSRF_COOKIE_SECURE=False,
+    )
+    def test_network_configuration_is_accepted(self):
+        output = StringIO()
+
+        call_command('verificar_rede', stdout=output)
+
+        text = output.getvalue()
+        self.assertIn('mysql-servidor.empresa.local:3306', text)
+        self.assertIn('http://192.168.1.50:8000', text)
+        self.assertNotIn('nao-exibida', text)
+
+    @override_settings(
+        DEBUG=False,
+        SERVE_MEDIA_LOCALLY=True,
+        DATABASES={
+            'default': {
+                'ENGINE': 'django.db.backends.mysql',
+                'NAME': 'historico_navios',
+                'PASSWORD': 'senha-configurada',
+                'HOST': '127.0.0.1',
+                'PORT': '3306',
+            }
+        },
+        ALLOWED_HOSTS=['192.168.1.50'],
+        PUBLIC_BASE_URL='http://192.168.1.50:8000',
+        SECRET_KEY='chave-de-homologacao-segura-e-diferente-do-valor-padrao',
+        SECURE_SSL_REDIRECT=False,
+        SESSION_COOKIE_SECURE=False,
+        CSRF_COOKIE_SECURE=False,
+    )
+    def test_network_configuration_rejects_local_database(self):
+        with self.assertRaisesMessage(CommandError, 'servidor MySQL da rede'):
+            call_command('verificar_rede')
+
+    @override_settings(
+        DEBUG=True,
+        SERVE_MEDIA_LOCALLY=False,
+        DATABASES=remote_database,
+        ALLOWED_HOSTS=['*'],
+        PUBLIC_BASE_URL='http://127.0.0.1:8000',
+        SECRET_KEY='django-insecure-local-development-key-change-me',
+        SECURE_SSL_REDIRECT=True,
+        SESSION_COOKIE_SECURE=True,
+        CSRF_COOKIE_SECURE=True,
+    )
+    def test_network_configuration_rejects_insecure_values(self):
+        with self.assertRaises(CommandError) as context:
+            call_command('verificar_rede')
+
+        message = str(context.exception)
+        self.assertIn("ALLOWED_HOSTS nao pode usar '*'", message)
+        self.assertIn('PUBLIC_BASE_URL deve usar o IP ou nome de rede', message)
+        self.assertIn('DEBUG deve ser False', message)
+        self.assertIn('SERVE_MEDIA_LOCALLY deve ser True', message)
+        self.assertIn('SECURE_SSL_REDIRECT deve ser False', message)
+        self.assertIn('SESSION_COOKIE_SECURE e CSRF_COOKIE_SECURE', message)
+
+    @override_settings(
+        DEBUG=False,
+        SERVE_MEDIA_LOCALLY=True,
+        DATABASES=remote_database,
+        ALLOWED_HOSTS=['loggeral-servidor'],
+        PUBLIC_BASE_URL='http://192.168.1.50:8000',
+        SECRET_KEY='chave-de-homologacao-segura-e-diferente-do-valor-padrao',
+        SECURE_SSL_REDIRECT=False,
+        SESSION_COOKIE_SECURE=False,
+        CSRF_COOKIE_SECURE=False,
+    )
+    def test_public_host_must_be_explicitly_allowed(self):
+        with self.assertRaisesMessage(CommandError, 'listado explicitamente'):
+            call_command('verificar_rede')
+
+    @override_settings(
+        DEBUG=False,
+        SERVE_MEDIA_LOCALLY=True,
+        DATABASES={
+            'default': {
+                'ENGINE': 'django.db.backends.mysql',
+                'NAME': 'historico_navios',
+                'PASSWORD': 'troque-a-senha',
+                'HOST': 'mysql-servidor.empresa.local',
+                'PORT': '3306',
+            }
+        },
+        ALLOWED_HOSTS=['192.168.1.50'],
+        PUBLIC_BASE_URL='http://192.168.1.50:8000',
+        SECRET_KEY='troque-por-uma-chave-secreta-grande-e-unica',
+        SECURE_SSL_REDIRECT=False,
+        SESSION_COOKIE_SECURE=False,
+        CSRF_COOKIE_SECURE=False,
+    )
+    def test_placeholder_credentials_are_rejected(self):
+        with self.assertRaises(CommandError) as context:
+            call_command('verificar_rede')
+
+        message = str(context.exception)
+        self.assertIn('senha do usuario MySQL', message)
+        self.assertIn('DJANGO_SECRET_KEY precisa ser uma chave longa', message)
