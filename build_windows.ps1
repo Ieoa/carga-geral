@@ -17,26 +17,40 @@ function Invoke-Checked {
     }
 }
 
-if (-not (Test-Path ".\venv\Scripts\python.exe")) {
-    throw "Ambiente virtual nao encontrado em .\venv. Crie o venv e instale as dependencias antes de gerar o executavel."
+$VenvPython = ".\venv\Scripts\python.exe"
+$VenvValido = Test-Path $VenvPython
+if ($VenvValido) {
+    & $VenvPython --version *> $null
+    $VenvValido = $LASTEXITCODE -eq 0
+}
+if (-not $VenvValido) {
+    Write-Host "Criando ou reparando o ambiente virtual..."
+    python -m venv --clear venv
+    if ($LASTEXITCODE -ne 0) {
+        throw "Nao foi possivel criar o ambiente virtual com o Python instalado."
+    }
 }
 
 Write-Host "Atualizando pip e instalando dependencias do projeto..."
-Invoke-Checked { .\venv\Scripts\python.exe -m pip install --upgrade pip } "Falha ao atualizar o pip."
-Invoke-Checked { .\venv\Scripts\python.exe -m pip install -r requirements.txt } "Falha ao instalar as dependencias."
+Invoke-Checked { & $VenvPython -m pip install --upgrade pip } "Falha ao atualizar o pip."
+Invoke-Checked { & $VenvPython -m pip install -r requirements.txt } "Falha ao instalar as dependencias."
 
 Write-Host "Coletando arquivos estaticos para entrar no executavel..."
 $env:DEBUG = "True"
-Invoke-Checked { .\venv\Scripts\python.exe .\manage.py collectstatic --noinput } "Falha ao coletar arquivos estaticos."
+Invoke-Checked { & $VenvPython .\manage.py collectstatic --noinput } "Falha ao coletar arquivos estaticos."
 
 Write-Host "Gerando executavel com as dependencias embutidas..."
 Invoke-Checked {
-    .\venv\Scripts\python.exe -m PyInstaller `
+    & $VenvPython -m PyInstaller `
         --noconfirm `
         --clean `
         .\HistoricoNavios.spec
 } "Falha ao gerar o executavel."
 
+Copy-Item -LiteralPath ".\.env.rede.example" -Destination ".\dist\loggeral.env.example" -Force
+
 Write-Host ""
 Write-Host "Executavel criado em: $ProjectRoot\dist\HistoricoNavios.exe"
-Write-Host "Copie esse arquivo para outra maquina Windows e execute. Nao precisa instalar Python nem pip na maquina de destino."
+Write-Host "Modelo de configuracao: $ProjectRoot\dist\loggeral.env.example"
+Write-Host "Copie os dois arquivos para outra maquina, renomeie o modelo para .env e configure o MySQL."
+Write-Host "Nao e necessario instalar Python nem pip na maquina de destino."

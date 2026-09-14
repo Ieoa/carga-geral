@@ -1,0 +1,94 @@
+{% extends "base/base_dashboard.html" %}
+
+{% block title %}LOGGERAL Insight{% endblock %}
+{% block module_title %}LOGGERAL Insight{% endblock %}
+
+{% block content %}
+<div class="container-fluid insight-page">
+    <div class="dashboard-heading insight-heading">
+        <div>
+            <div class="insight-eyebrow"><i class="bi bi-stars"></i> Inteligência operacional local</div>
+            <h1>LOGGERAL Insight</h1>
+            <p>Regras explicáveis e detecção estatística de operações fora do padrão, sem envio de dados para serviços externos.</p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3"><div class="insight-metric"><span>Operações analisadas</span><strong>{{ resumo.total }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="insight-metric insight-danger"><span>Atenção alta</span><strong>{{ resumo.alto }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="insight-metric insight-warning"><span>Atenção média</span><strong>{{ resumo.medio }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="insight-metric insight-success"><span>Atenção baixa</span><strong>{{ resumo.baixo }}</strong></div></div>
+    </div>
+
+    <div class="alert insight-model-status {% if modelo.status == 'modelo_local_ativo' %}alert-success{% elif modelo.status == 'indisponivel' %}alert-danger{% else %}alert-info{% endif %}" role="status">
+        <div>
+            <strong>{{ modelo.algoritmo }}</strong>
+            <div>{{ modelo.mensagem }}</div>
+        </div>
+        <span class="badge text-bg-light">{{ modelo.amostras }}/{{ modelo.minimo_amostras }} amostras</span>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-lg-7">
+                    <label for="insight-search" class="form-label">Pesquisar operação</label>
+                    <input id="insight-search" name="q" value="{{ busca }}" class="form-control" placeholder="Navio, armador ou agência">
+                </div>
+                <div class="col-lg-3">
+                    <label for="insight-risk" class="form-label">Classificação</label>
+                    <select id="insight-risk" name="risco" class="form-select">
+                        <option value="">Todas as classificações</option>
+                        <option value="alto" {% if risco == 'alto' %}selected{% endif %}>Alto</option>
+                        <option value="medio" {% if risco == 'medio' %}selected{% endif %}>Médio</option>
+                        <option value="baixo" {% if risco == 'baixo' %}selected{% endif %}>Baixo</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 d-grid"><button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Analisar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table insight-table mb-0">
+                <thead><tr><th>Índice de atenção</th><th>Operação</th><th>Indicadores</th><th>Explicação</th><th>Dados técnicos</th></tr></thead>
+                <tbody>
+                {% for item in page_obj %}
+                    <tr>
+                        <td><span class="risk-badge risk-{{ item.risco }}">{{ item.risco_rotulo }}</span><strong class="risk-score">{{ item.pontuacao }}/100</strong></td>
+                        <td><strong>{{ item.navio }}</strong><span>{{ item.armador }} · {{ item.agencia }}</span>{% if item.eta %}<span>ETA: {{ item.eta|slice:":16" }}</span>{% endif %}</td>
+                        <td>
+                            <span>Duração: {{ item.features.duracao_operacao_horas|floatformat:1|default:"—" }} h</span>
+                            <span>Peso total: {{ item.features.peso_total|floatformat:1|default:"—" }}</span>
+                            <span>Produtividade: {{ item.features.produtividade_peso_hora|floatformat:1|default:"—" }}/h</span>
+                        </td>
+                        <td>
+                            {% if item.alertas %}
+                                <ul class="insight-alert-list">
+                                {% for alerta in item.alertas|slice:":3" %}
+                                    <li><span class="alert-dot alert-{{ alerta.severidade }}"></span>{{ alerta.mensagem }}</li>
+                                {% endfor %}
+                                </ul>
+                                {% if item.total_alertas > 3 %}<small>Mais {{ item.total_alertas|add:"-3" }} alerta(s) no resultado técnico.</small>{% endif %}
+                            {% else %}<span class="text-success"><i class="bi bi-check-circle me-1"></i>Nenhuma inconsistência encontrada.</span>{% endif %}
+                        </td>
+                        <td><a class="btn btn-sm btn-outline-secondary" href="{% url 'insight_navio_api' item.navio_id %}" target="_blank" rel="noopener"><i class="bi bi-braces"></i> JSON</a></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted py-5">Nenhuma operação encontrada para os filtros informados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            <div>{% if page_obj.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?q={{ busca|urlencode }}&risco={{ risco }}&page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %} {% if page_obj.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?q={{ busca|urlencode }}&risco={{ risco }}&page={{ page_obj.next_page_number }}">Próxima</a>{% endif %}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <p class="insight-disclaimer"><i class="bi bi-info-circle me-1"></i>Os alertas apoiam a conferência humana e não substituem a decisão do responsável pela operação.</p>
+</div>
+{% endblock %}

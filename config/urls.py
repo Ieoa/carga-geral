@@ -1,26 +1,24 @@
 from django.contrib import admin
-from django.urls import path, include, re_path
-from django.conf import settings
-from django.conf.urls.static import static
 from django.shortcuts import render
-from django.views.static import serve as serve_media
+from django.urls import include, path, re_path
+
+from historico.views.health import health_check
+from historico.views.media import protected_media
 
 urlpatterns = [
+    path("health/", health_check, name="health_check"),
     path("admin/", admin.site.urls),
     path("", include("historico.urls")),  # inclui suas rotas do app
     path("estoque/", include(("estoque.urls", "estoque"), namespace="estoque")),
 ]
 
-if settings.DEBUG or settings.DESKTOP_MODE:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-elif settings.SERVE_MEDIA_LOCALLY:
-    urlpatterns += [
-        re_path(
-            r"^media/(?P<path>.*)$",
-            serve_media,
-            {"document_root": settings.MEDIA_ROOT},
-        )
-    ]
+urlpatterns += [
+    re_path(
+        r"^media/(?P<path>.*)$",
+        protected_media,
+        name="protected_media",
+    )
+]
 
 # Handler de erro personalizado
 def custom_page_not_found(request, exception):

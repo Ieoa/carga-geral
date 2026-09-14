@@ -274,7 +274,13 @@
         if (this.files && this.files[0]) {
           const reader = new FileReader();
           reader.onload = function (e) {
-            preview.innerHTML = `<img src="${e.target.result}" class="img-thumbnail mt-2" width="200">`;
+            preview.replaceChildren();
+            const image = document.createElement('img');
+            image.src = e.target.result;
+            image.className = 'img-thumbnail mt-2';
+            image.width = 200;
+            image.alt = 'Pré-visualização da foto do equipamento';
+            preview.appendChild(image);
           }
           reader.readAsDataURL(this.files[0]);
         } else {
@@ -413,11 +419,20 @@
       item.classList.add("list-group-item", "d-flex", "justify-content-between", "align-items-center");
       
       const info = document.createElement("div");
-      info.innerHTML = `
-        <strong>${cert.nome}</strong><br>
-        <small class="text-muted">${cert.empresa} ${cert.data ? '- ' + cert.data : ''} ${cert.anexo ? `(Anexo: ${cert.anexo.name})` : ''}</small>
-        ${cert.notificar ? '<br><small class="text-success"><i class="bi bi-bell"></i> Aviso por e-mail ativado</small>' : ''}
-      `;
+      const title = document.createElement("strong");
+      title.textContent = cert.nome;
+      const details = document.createElement("small");
+      details.className = "text-muted";
+      details.textContent = `${cert.empresa} ${cert.data ? '- ' + cert.data : ''} ${cert.anexo ? `(Anexo: ${cert.anexo.name})` : ''}`;
+      info.append(title, document.createElement("br"), details);
+      if (cert.notificar) {
+        const notification = document.createElement("small");
+        notification.className = "text-success";
+        const icon = document.createElement("i");
+        icon.className = "bi bi-bell";
+        notification.append(icon, document.createTextNode(" Aviso por e-mail ativado"));
+        info.append(document.createElement("br"), notification);
+      }
       
       const btnRemover = document.createElement("button");
       btnRemover.classList.add("btn", "btn-sm", "btn-outline-danger");

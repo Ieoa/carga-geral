@@ -5,14 +5,13 @@
 
 {% block content %}
 <div class="container text-center py-5">
-    <!-- Imagem personalizada -->
-    <img src="{% static 'images\erro_404.jpg' %}" alt="Erro 404" class="img-fluid mb-4" style="max-width: 500px;">
+    <img src="{% static 'images/logo.png' %}" alt="LOGGERAL" class="img-fluid mb-4" style="max-width: 160px;">
 
     <h1 class="display-5 fw-bold text-danger">Ops! Algo deu errado...</h1>
     <p class="lead">A página que você procura não existe ou foi movida.</p>
 
     <a href="{% url 'login' %}" class="btn btn-primary mt-3">
-        Voltar ao Dashboard
+        Voltar ao início
     </a>
 </div>
 {% endblock %}

@@ -15,4 +15,5 @@ class Command(BaseCommand):
         if erros:
             self.stderr.write(self.style.ERROR(f'{len(erros)} aviso(s) não puderam ser enviados.'))
             for erro in erros:
-                self.stderr.write(f"Certificado #{erro['certificado']}: {erro['erro']}")
+                prefixo = f"Certificado #{erro['certificado']}: " if erro['certificado'] else ""
+                self.stderr.write(f"{prefixo}{erro['erro']}")

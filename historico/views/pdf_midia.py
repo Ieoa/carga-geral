@@ -1,17 +1,34 @@
 import io
+
+from django.contrib.auth.decorators import login_required
 from django.http import FileResponse
+from django.shortcuts import get_object_or_404
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib import colors
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.decorators import login_required
-from ..models import FotoVideoNavio, DocumentoNavio
+from reportlab.platypus import (
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
+from ..models import DocumentoNavio, FotoVideoNavio
+from ..permissions import filter_midia_queryset
+
 
 @login_required
 def gerar_pdf_midia(request, pk):
-    midia = get_object_or_404(FotoVideoNavio.objects.select_related("navio", "navio__criado_por"), pk=pk)
+    midia = get_object_or_404(
+        filter_midia_queryset(
+            request.user,
+            FotoVideoNavio.objects.select_related("navio", "navio__criado_por"),
+        ),
+        pk=pk,
+    )
     documentos = DocumentoNavio.objects.filter(navio=midia.navio)
 
     buffer = io.BytesIO()

@@ -23,7 +23,7 @@ class ForcePasswordChangeMiddleware:
         }
         if request.path in exempt_paths:
             return False
-        if request.path.startswith((settings.STATIC_URL, settings.MEDIA_URL)):
+        if request.path.startswith(settings.STATIC_URL):
             return False
 
         access_control = getattr(request.user, 'access_control', None)

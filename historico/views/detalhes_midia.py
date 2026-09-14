@@ -1,7 +1,8 @@
-from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from ..models import FotoVideoNavio, DocumentoNavio
-from ..permissions import profile_role
+from django.shortcuts import get_object_or_404, render
+
+from ..models import DocumentoNavio, FotoVideoNavio
+from ..permissions import filter_midia_queryset, profile_role
 
 ### Esse módulo faz a renderização da visualização de uma mídia específica 
 ### (foto ou vídeo) vinculada a um navio, junto com seus documentos associados.
@@ -21,7 +22,13 @@ def visualizar_midia(request, pk):
         com os dados da mídia e dos documentos associados.
     """
     # Busca a mídia pelo ID ou retorna 404 se não existir
-    midia = get_object_or_404(FotoVideoNavio.objects.select_related("navio", "navio__criado_por"), pk=pk)
+    midia = get_object_or_404(
+        filter_midia_queryset(
+            request.user,
+            FotoVideoNavio.objects.select_related("navio", "navio__criado_por"),
+        ),
+        pk=pk,
+    )
     
     # Pega todos os documentos vinculados ao navio dessa mídia
     documentos = DocumentoNavio.objects.filter(navio=midia.navio)

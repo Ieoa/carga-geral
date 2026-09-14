@@ -14,69 +14,106 @@
 
   <!-- Resultados -->
   <div id="resultados" class="row"></div>
+  <button id="loadMore" type="button" class="btn btn-outline-primary mb-4" hidden>Carregar mais resultados</button>
 </div>
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const searchInput = document.getElementById("searchInput");
     const resultadosDiv = document.getElementById("resultados");
+    const loadMore = document.getElementById("loadMore");
+    let currentQuery = "";
+    let currentPage = 1;
 
-    async function fetchResultados(query) {
-      const response = await fetch(
-        `/pesquisar_midias/?q=${encodeURIComponent(query)}`
-      );
-      const data = await response.json();
-      renderResultados(data.resultados);
+    async function fetchResultados(query, page = 1, append = false) {
+      try {
+        const response = await fetch(`/pesquisar_midias/?q=${encodeURIComponent(query)}&page=${page}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        renderResultados(data.resultados, append);
+        currentQuery = query;
+        currentPage = data.paginacao.pagina;
+        loadMore.hidden = !data.paginacao.tem_proxima;
+      } catch (error) {
+        resultadosDiv.replaceChildren();
+        const aviso = document.createElement("p");
+        aviso.className = "text-danger";
+        aviso.textContent = "Não foi possível consultar as mídias. Tente novamente.";
+        resultadosDiv.appendChild(aviso);
+      }
     }
 
-    function renderResultados(resultados) {
-      resultadosDiv.innerHTML = "";
+    function textElement(tag, text, className = "") {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = text;
+      return element;
+    }
+
+    function appendDetail(container, label, value) {
+      const line = document.createElement("div");
+      line.appendChild(textElement("strong", `${label}: `));
+      line.appendChild(document.createTextNode(value || "---"));
+      container.appendChild(line);
+    }
+
+    function actionLink(label, variant, id, action) {
+      const link = textElement("a", label, `btn btn-sm btn-${variant}`);
+      link.href = `/midia/${encodeURIComponent(String(id))}/${action}/`;
+      return link;
+    }
+
+    function renderResultados(resultados, append = false) {
+      if (!append) resultadosDiv.replaceChildren();
 
       if (resultados.length === 0) {
-        resultadosDiv.innerHTML = "<p>Nenhum resultado encontrado.</p>";
+        if (!append) resultadosDiv.appendChild(textElement("p", "Nenhum resultado encontrado."));
         return;
       }
 
       resultados.forEach((midia) => {
         const col = document.createElement("div");
-        col.classList.add("col-md-4", "mb-4");
+        col.className = "col-md-4 mb-4";
+        const card = document.createElement("div");
+        card.className = "card h-100 shadow-sm";
 
-        col.innerHTML = `
-                <div class="card h-100 shadow-sm">
-                    ${
-                      midia.is_image
-                        ? `<img src="${midia.arquivo}" class="card-img-top img-fluid" style="max-height:200px; object-fit:cover;">`
-                        : midia.is_video
-                        ? `<video src="${midia.arquivo}" class="card-img-top img-fluid" style="max-height:200px; object-fit:cover;" controls></video>`
-                        : `<div class="p-3 text-center text-muted">Arquivo não suportado</div>`
-                    }
-                    <div class="card-body">
-                        <h5 class="card-title">${
-                          midia.tipo_peca || "Sem descrição"
-                        }</h5>
-                        <p class="card-text">
-                            <strong>Navio:</strong> ${midia.navio || "---"}<br>
-                            <strong>Agência:</strong> ${midia.agencia || "---"}<br>
-                            <strong>Armador:</strong> ${midia.armador || "---"}<br>
-                            <strong>Início:</strong> ${midia.inicio || "---"}<br>
-                            <strong>Fim:</strong> ${midia.fim || "---"}<br>
-                            <strong>Cadastrado por:</strong> ${midia.cadastrado_por || "---"}
-                            <span class="badge text-bg-secondary ms-1">${midia.perfil_cadastro || "---"}</span>
-                        </p>
-                    </div>
-                    <div class="card-footer d-flex gap-2 flex-wrap">
-                        <a href="/midia/${
-                          midia.id
-                        }/visualizar/" class="btn btn-sm btn-info">Visualizar</a>
-                        ${midia.can_edit ? `<a href="/midia/${
-                          midia.id
-                        }/editar/" class="btn btn-sm btn-warning">Editar</a>` : ""}
-                        ${midia.can_delete ? `<a href="/midia/${
-                          midia.id
-                        }/excluir/" class="btn btn-sm btn-danger">Excluir</a>` : ""}
-                    </div>
-                </div>
-            `;
+        if (midia.is_image || midia.is_video) {
+          const preview = document.createElement(midia.is_image ? "img" : "video");
+          preview.src = midia.arquivo;
+          preview.className = "card-img-top img-fluid";
+          preview.style.maxHeight = "200px";
+          preview.style.objectFit = "cover";
+          if (midia.is_video) preview.controls = true;
+          if (midia.is_image) preview.alt = midia.tipo_peca || `Mídia do navio ${midia.navio || "não informado"}`;
+          card.appendChild(preview);
+        } else {
+          card.appendChild(textElement("div", "Arquivo não suportado", "p-3 text-center text-muted"));
+        }
+
+        const body = document.createElement("div");
+        body.className = "card-body";
+        body.appendChild(textElement("h5", midia.tipo_peca || "Sem descrição", "card-title"));
+        const details = document.createElement("div");
+        details.className = "card-text";
+        appendDetail(details, "Navio", midia.navio);
+        appendDetail(details, "Agência", midia.agencia);
+        appendDetail(details, "Armador", midia.armador);
+        appendDetail(details, "Início", midia.inicio);
+        appendDetail(details, "Fim", midia.fim);
+        appendDetail(details, "Cadastrado por", midia.cadastrado_por);
+        details.appendChild(textElement("span", midia.perfil_cadastro || "---", "badge text-bg-secondary mt-1"));
+        body.appendChild(details);
+        card.appendChild(body);
+
+        const footer = document.createElement("div");
+        footer.className = "card-footer d-flex gap-2 flex-wrap";
+        footer.appendChild(actionLink("Visualizar", "info", midia.id, "visualizar"));
+        if (midia.can_edit) footer.appendChild(actionLink("Editar", "warning", midia.id, "editar"));
+        if (midia.can_delete) footer.appendChild(actionLink("Excluir", "danger", midia.id, "excluir"));
+        card.appendChild(footer);
+        col.appendChild(card);
         resultadosDiv.appendChild(col);
       });
     }
@@ -87,11 +124,14 @@
       clearTimeout(timeout);
       timeout = setTimeout(() => {
         const query = searchInput.value.trim();
-        fetchResultados(query); // 🔥 sempre busca, mesmo vazio
-      }, 300); // delay de 300ms
+        fetchResultados(query);
+      }, 300);
     });
 
-    // 🔥 Chama ao carregar a página (já traz todos)
+    loadMore.addEventListener("click", function () {
+      fetchResultados(currentQuery, currentPage + 1, true);
+    });
+
     fetchResultados("");
   });
 </script>

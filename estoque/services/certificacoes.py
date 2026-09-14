@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
@@ -33,34 +34,58 @@ def enviar_avisos_certificados(queryset=None, referencia=None):
     enviados = 0
     erros = []
 
-    for certificado in certificados_para_notificar(queryset, referencia):
-        equipamento = certificado.equipamento
-        assunto = f'Certificado próximo do vencimento: {certificado.nome_certificado}'
-        mensagem = (
-            'Olá,\n\n'
-            f'O certificado "{certificado.nome_certificado}" do material '
-            f'"{equipamento.equipamento}" ({equipamento.identificador}) vence em '
-            f'{certificado.data_vencimento:%d/%m/%Y}.\n\n'
-            f'Código do certificado: {certificado.codigo_certificado or "Não informado"}\n'
-            f'Empresa certificadora: {certificado.empresa_certificadora}\n\n'
-            'Acesse o sistema Carga Geral para consultar o documento e providenciar a renovação.'
-        )
+    non_delivery_backends = {
+        'django.core.mail.backends.console.EmailBackend',
+        'django.core.mail.backends.dummy.EmailBackend',
+    }
+    if settings.EMAIL_BACKEND in non_delivery_backends:
+        return {
+            'enviados': 0,
+            'erros': [{
+                'certificado': None,
+                'erro': 'O backend de e-mail atual não realiza entregas. Configure o SMTP da empresa.',
+            }],
+        }
 
-        try:
-            send_mail(
-                assunto,
-                mensagem,
-                settings.DEFAULT_FROM_EMAIL,
-                [certificado.email_notificacao],
-                fail_silently=False,
+    candidate_ids = list(
+        certificados_para_notificar(queryset, referencia).values_list('pk', flat=True)
+    )
+    for certificate_id in candidate_ids:
+        with transaction.atomic():
+            locked_queryset = Certificacao.objects.select_for_update().filter(pk=certificate_id)
+            certificado = certificados_para_notificar(locked_queryset, referencia).first()
+            if certificado is None:
+                continue
+
+            equipamento = certificado.equipamento
+            assunto = f'Certificado próximo do vencimento: {certificado.nome_certificado}'
+            mensagem = (
+                'Olá,\n\n'
+                f'O certificado "{certificado.nome_certificado}" do material '
+                f'"{equipamento.equipamento}" ({equipamento.identificador}) vence em '
+                f'{certificado.data_vencimento:%d/%m/%Y}.\n\n'
+                f'Código do certificado: {certificado.codigo_certificado or "Não informado"}\n'
+                f'Empresa certificadora: {certificado.empresa_certificadora}\n\n'
+                'Acesse o sistema Carga Geral para consultar o documento e providenciar a renovação.'
             )
-        except Exception as exc:
-            erros.append({'certificado': certificado.pk, 'erro': str(exc)})
-            continue
 
-        certificado.notificacao_enviada_em = timezone.now()
-        certificado.vencimento_notificado = certificado.data_vencimento
-        certificado.save(update_fields=['notificacao_enviada_em', 'vencimento_notificado'])
-        enviados += 1
+            try:
+                delivered = send_mail(
+                    assunto,
+                    mensagem,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [certificado.email_notificacao],
+                    fail_silently=False,
+                )
+                if delivered != 1:
+                    raise RuntimeError('O servidor de e-mail não confirmou a entrega da mensagem.')
+            except Exception as exc:
+                erros.append({'certificado': certificado.pk, 'erro': str(exc)})
+                continue
+
+            certificado.notificacao_enviada_em = timezone.now()
+            certificado.vencimento_notificado = certificado.data_vencimento
+            certificado.save(update_fields=['notificacao_enviada_em', 'vencimento_notificado'])
+            enviados += 1
 
     return {'enviados': enviados, 'erros': erros}
