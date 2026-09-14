@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.management import call_command
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from historico.security import create_user_with_temporary_password
 
@@ -11,7 +11,6 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--username", default="admin_inicial")
         parser.add_argument("--skip-migrate", action="store_true")
-        parser.add_argument("--promote-existing", action="store_true")
 
     def handle(self, *args, **options):
         if not options["skip_migrate"]:
@@ -20,15 +19,15 @@ class Command(BaseCommand):
         username = options["username"]
         user = User.objects.filter(username=username).first()
         if user:
-            if not (user.is_staff and user.is_superuser):
-                if not options["promote_existing"]:
-                    raise CommandError(
-                        f"O usuário '{username}' já existe sem privilégios administrativos. "
-                        "Use outro --username ou confirme conscientemente com --promote-existing."
-                    )
+            changed = []
+            if not user.is_staff:
                 user.is_staff = True
+                changed.append("is_staff")
+            if not user.is_superuser:
                 user.is_superuser = True
-                user.save(update_fields=["is_staff", "is_superuser"])
+                changed.append("is_superuser")
+            if changed:
+                user.save(update_fields=changed)
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Administrador inicial '{username}' ja existe; senha preservada."

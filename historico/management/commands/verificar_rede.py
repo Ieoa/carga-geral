@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 
 
@@ -106,38 +107,12 @@ class Command(BaseCommand):
         if settings.SECRET_KEY in insecure_secret_keys or len(settings.SECRET_KEY) < 40:
             errors.append("DJANGO_SECRET_KEY precisa ser uma chave longa, unica e nao padrao.")
 
-        if settings.AD_AUTH_ENABLED:
-            ad_url = urlsplit(settings.AD_SERVER_URI)
-            if ad_url.scheme != "ldaps" and not settings.AD_START_TLS:
-                errors.append("Active Directory deve usar LDAPS ou AD_START_TLS=True.")
-            required_ad = {
-                "AD_SERVER_URI": settings.AD_SERVER_URI,
-                "AD_BIND_DN": settings.AD_BIND_DN,
-                "AD_BIND_PASSWORD": settings.AD_BIND_PASSWORD,
-                "AD_USER_SEARCH_BASE": settings.AD_USER_SEARCH_BASE,
-            }
-            missing_ad = [name for name, value in required_ad.items() if not value]
-            if missing_ad:
-                errors.append("Configuracao AD incompleta: " + ", ".join(missing_ad) + ".")
-
         if errors:
             formatted = "\n- ".join(errors)
             raise CommandError("Configuracao de rede invalida:\n- " + formatted)
 
         self.stdout.write(f"Servidor MySQL remoto: {database_host}:{database_port}")
         self.stdout.write(f"Endereco para os usuarios: {public_url}")
-        if parsed_url.scheme == "http":
-            self.stdout.write(self.style.WARNING(
-                "HTTP deve ser usado somente na homologacao isolada. Para credenciais, AD e camera do QR Code, prefira HTTPS."
-            ))
-        if not database.get("OPTIONS", {}).get("ssl"):
-            self.stdout.write(self.style.WARNING(
-                "Conexao MySQL sem CA TLS configurada. Confirme com a TI se a rede exige criptografia."
-            ))
-        if settings.EMAIL_BACKEND.endswith(("console.EmailBackend", "dummy.EmailBackend")):
-            self.stdout.write(self.style.WARNING(
-                "O backend de e-mail atual nao entrega mensagens; avisos permanecerao bloqueados ate configurar SMTP."
-            ))
         self.stdout.write(
             self.style.SUCCESS("Configuracao de homologacao em rede validada.")
         )

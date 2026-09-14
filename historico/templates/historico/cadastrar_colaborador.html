@@ -1,0 +1,128 @@
+{% extends "base/base_dashboard.html" %}
+{% load static %}
+
+{% block extra_css %}
+<!-- Os mesmos estilos do outro template para consistência -->
+<style>
+    .card {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+        border: none;
+        border-radius: 0.75rem;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+    .card-header {
+        background-color: #343a40;
+        color: white;
+        font-weight: 600;
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .card {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+
+            <header class="mb-4 text-center">
+                <h1 class="h2 fw-bold">Cadastro de Colaborador</h1>
+                <p class="text-muted">Insira os dados para registrar um novo membro na equipe.</p>
+            </header>
+
+            <!-- Seção para exibir mensagens do Django (com ícones) -->
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} d-flex align-items-center alert-dismissible fade show" role="alert">
+                    <i class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% else %}bi-check-circle-fill{% endif %} flex-shrink-0 me-2"></i>
+                    <div>{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" id="colaborador-form" novalidate>
+                {% csrf_token %}
+
+                <div class="card">
+                    <div class="card-header d-flex align-items-center text-white" style="background-color: #3498db;">
+                        <i class="bi bi-person-badge me-2"></i> Informações do Colaborador
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Exibe erros que não são de um campo específico -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <!-- Loop através dos campos do formulário -->
+                            {% for field in form %}
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ field }}
+                                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                </div>
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1 ms-1">
+                                        {{ field.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg me-1"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-person-plus-fill me-2"></i> Salvar Colaborador
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Script para máscara de CPF (sem alterações, continua funcional) -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const cpfInput = document.querySelector(".cpf-mask");
+
+    if (cpfInput) {
+        cpfInput.addEventListener("input", function(e) {
+            let value = e.target.value.replace(/\D/g, "");
+            if (value.length > 11) {
+                value = value.slice(0, 11);
+            }
+
+            let formatted = value;
+            if (value.length > 9) {
+                formatted = `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6, 9)}-${value.slice(9)}`;
+            } else if (value.length > 6) {
+                formatted = `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6)}`;
+            } else if (value.length > 3) {
+                formatted = `${value.slice(0, 3)}.${value.slice(3)}`;
+            }
+            e.target.value = formatted;
+        });
+    }
+});
+</script>
+{% endblock %}

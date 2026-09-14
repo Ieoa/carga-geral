@@ -3,24 +3,6 @@
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 
-def is_runtime_module(module_name):
-    """Remove pacotes de teste que nao sao usados em producao."""
-    parts = module_name.split('.')
-    return not any(
-        part in {'test', 'tests', 'testing', 'conftest'}
-        or part.startswith('test_')
-        for part in parts
-    )
-
-
-def runtime_submodules(package):
-    return [
-        module_name
-        for module_name in collect_submodules(package)
-        if is_runtime_module(module_name)
-    ]
-
-
 def merge_collect_all(*packages):
     datas = []
     binaries = []
@@ -30,29 +12,22 @@ def merge_collect_all(*packages):
         package_datas, package_binaries, package_hiddenimports = collect_all(package)
         datas += package_datas
         binaries += package_binaries
-        hiddenimports += [
-            module_name
-            for module_name in package_hiddenimports
-            if is_runtime_module(module_name)
-        ]
+        hiddenimports += package_hiddenimports
 
     return datas, binaries, hiddenimports
 
 
 package_datas, package_binaries, package_hiddenimports = merge_collect_all(
-    'cryptography',
+    'bs4',
+    'chardet',
     'decouple',
     'dj_database_url',
     'pymysql',
     'ldap3',
-    'joblib',
-    'numpy',
     'PIL',
     'qrcode',
     'reportlab',
-    'sklearn',
-    'scipy',
-    'threadpoolctl',
+    'requests',
     'whitenoise',
 )
 
@@ -65,6 +40,7 @@ project_datas = [
     ('estoque\\migrations', 'estoque\\migrations'),
     ('static', 'static'),
     ('staticfiles', 'staticfiles'),
+    ('media', 'media'),
 ]
 
 project_hiddenimports = [
@@ -73,6 +49,7 @@ project_hiddenimports = [
     'config.auth_backends',
     'historico',
     'historico.apps',
+    'historico.backends',
     'historico.templatetags.custom_filters',
     'historico.urls',
     'estoque',
@@ -81,16 +58,14 @@ project_hiddenimports = [
     'whitenoise.middleware',
     'whitenoise.storage',
 ]
-project_hiddenimports += runtime_submodules('historico')
-project_hiddenimports += runtime_submodules('estoque')
-project_hiddenimports += runtime_submodules('django.contrib.admin')
-project_hiddenimports += runtime_submodules('django.contrib.auth')
-project_hiddenimports += runtime_submodules('django.contrib.contenttypes')
-project_hiddenimports += runtime_submodules('django.contrib.messages')
-project_hiddenimports += runtime_submodules('django.contrib.sessions')
-project_hiddenimports += runtime_submodules('django.contrib.staticfiles')
-
-embedded_database_driver = ''.join(('sql', 'ite3'))
+project_hiddenimports += collect_submodules('historico')
+project_hiddenimports += collect_submodules('estoque')
+project_hiddenimports += collect_submodules('django.contrib.admin')
+project_hiddenimports += collect_submodules('django.contrib.auth')
+project_hiddenimports += collect_submodules('django.contrib.contenttypes')
+project_hiddenimports += collect_submodules('django.contrib.messages')
+project_hiddenimports += collect_submodules('django.contrib.sessions')
+project_hiddenimports += collect_submodules('django.contrib.staticfiles')
 
 
 a = Analysis(
@@ -102,12 +77,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    # O aplicativo usa exclusivamente MySQL/MariaDB. Evita embutir o driver
-    # local do Python e impede uma troca acidental de banco no executavel.
-    excludes=[
-        embedded_database_driver,
-        f'django.db.backends.{embedded_database_driver}',
-    ],
+    excludes=[],
     noarchive=False,
     optimize=0,
 )

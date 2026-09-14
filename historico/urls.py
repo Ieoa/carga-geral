@@ -1,19 +1,9 @@
 from django.urls import path
-
-from .views import (
-    auditoria,
-    cadastrar_colaborador,
-    cadastrar_navio,
-    dashboard,
-    detalhes_midia,
-    editar_navio,
-    excluir_midia,
-    insight,
-    login,
-    pdf_midia,
-    pesquisar_midias,
-)
+from .views import dashboard, login, cadastrar_navio, pesquisar_midias, excluir_midia, detalhes_midia, pdf_midia, editar_navio, cadastrar_colaborador, auditoria
 from .views.password import RequiredPasswordChangeView
+
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path("", login.login_view, name="login"),
@@ -30,10 +20,11 @@ urlpatterns = [
     path("midia/<int:pk>/visualizar/", detalhes_midia.visualizar_midia, name="visualizar_midia"),
     path("midia/<int:pk>/pdf/", pdf_midia.gerar_pdf_midia, name="gerar_pdf_midia"),
     path("auditoria/", auditoria.auditoria, name="auditoria"),
-    path("insight/", insight.insight_dashboard, name="insight_dashboard"),
-    path("insight/api/navios/<int:pk>/", insight.insight_navio_api, name="insight_navio_api"),
     path("colaboradores/cadastrar/", cadastrar_colaborador.cadastrar_colaborador, name="cadastrar_colaborador")
 ]
+
+if settings.DEBUG or settings.DESKTOP_MODE:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     
     
     

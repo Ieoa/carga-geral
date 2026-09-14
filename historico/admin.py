@@ -1,9 +1,7 @@
 # admin.py
 from django import forms
 from django.contrib import admin
-
 from .models import AuditLog, Colaborador
-
 
 class ColaboradorForm(forms.ModelForm):
     class Meta:

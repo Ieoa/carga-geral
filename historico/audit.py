@@ -2,6 +2,7 @@ from django.forms.models import model_to_dict
 
 from .models import AuditLog
 
+
 IGNORED_FIELDS = {"id", "password", "last_login"}
 
 

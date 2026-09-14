@@ -15,22 +15,9 @@
 {% block extra_js %}
 <script>
   function onScanSuccess(decodedText, decodedResult) {
-    const status = document.getElementById("status");
-    if (!decodedText) return;
-    try {
-      const destination = new URL(decodedText, window.location.origin);
-      const allowedPath = /^\/estoque\/dashboard\/equipamentos\/detalhe_equipamento\/\d+\/?$/;
-      if (destination.origin !== window.location.origin || !allowedPath.test(destination.pathname)) {
-        status.innerText = "QR Code recusado: o endereço não pertence a um equipamento do LOGGERAL.";
-        status.className = "text-danger text-center";
-        return;
-      }
-      status.innerText = "QR Code reconhecido! Redirecionando...";
-      status.className = "text-success text-center";
-      window.location.assign(destination.href);
-    } catch (error) {
-      status.innerText = "QR Code inválido.";
-      status.className = "text-danger text-center";
+    document.getElementById("status").innerText = "QR Code reconhecido! Redirecionando...";
+    if (decodedText) {
+      window.location.href = `${decodedText}`;
     }
   }
 
@@ -48,11 +35,5 @@
   );
 
   html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-
-  if (!window.isSecureContext && !["localhost", "127.0.0.1"].includes(window.location.hostname)) {
-    const status = document.getElementById("status");
-    status.innerText = "A câmera pode ser bloqueada pelo navegador em HTTP. Solicite HTTPS à TI.";
-    status.className = "text-warning text-center";
-  }
 </script>
 {% endblock %}

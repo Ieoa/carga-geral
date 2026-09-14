@@ -23,6 +23,7 @@ jobs:
           --health-retries=10
     env:
       DEBUG: "True"
+      DJANGO_SECRET_KEY: ci-only-secret-key
       DATABASE_URL: mysql://root@127.0.0.1:3306/historico_navios
       SECURE_SSL_REDIRECT: "False"
       SESSION_COOKIE_SECURE: "False"
@@ -33,9 +34,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Gerar chave efêmera para os testes
-        shell: bash
-        run: echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" >> "$GITHUB_ENV"
       - run: pip install -r requirements.txt
       - run: python manage.py check
       - run: python manage.py makemigrations --check --dry-run
