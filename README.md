@@ -2,10 +2,12 @@
 
 Sistema desenvolvido em Django para registrar historico de navios, midias, documentos e equipamentos de estoque.
 
-O projeto tem duas areas principais:
+O projeto tem tres areas principais:
 
 - Historico de navios: cadastro de navios, midias, documentos e relatorios em PDF.
 - Estoque: cadastro de colaboradores, equipamentos, QR Codes e certificacoes.
+- LOGGERAL Insight: conferencia automatica e explicavel de qualidade dos dados e de padroes
+  operacionais atipicos, executada no proprio servidor, sem API externa ou custo por consulta.
 
 ## Documentacao tecnica
 
@@ -15,15 +17,18 @@ O projeto tem duas areas principais:
 - [Arquitetura](docs/arquitetura.md)
 - [Plano de testes](docs/plano_de_testes.md)
 - [Manual do usuario](docs/manual_do_usuario.md)
+- [LOGGERAL Insight](docs/loggeral_insight.md)
+- [Checkup de implantacao](docs/checkup_implantacao.md)
+- [Guia detalhado de implantacao](DEPLOY.md)
 
 ## Tecnologias
 
 - Python 3.12 ou superior
-- Django 5.2.5
+- Django 5.2.17
 - MySQL 8.0 ou superior
+- scikit-learn para deteccao local de padroes atipicos
 - ReportLab para geracao de PDFs
 - qrcode e Pillow para QR Codes e imagens
-- requests e BeautifulSoup para consulta/scraping auxiliar
 - WhiteNoise para servir arquivos estaticos em producao
 
 ## Como rodar localmente
@@ -35,7 +40,7 @@ cria o administrador inicial quando necessario e abre o sistema no navegador.
 1. Clone o repositorio:
 
 ```bash
-git clone URL_DO_REPOSITORIO_GITLAB
+git clone https://github.com/Ieoa/carga-geral.git
 cd carga-geral
 ```
 
@@ -83,6 +88,7 @@ GRANT ALL PRIVILEGES ON historico_navios.* TO 'historico_navios'@'localhost';
 ```bash
 python manage.py preparar_acesso_inicial
 python manage.py verificar_banco
+python manage.py verificar_insight
 ```
 
 O primeiro comando cria `admin_inicial` com uma senha temporaria aleatoria, exibida uma unica vez no
@@ -120,6 +126,7 @@ python manage.py runserver
 - Historico: http://127.0.0.1:8000/
 - Estoque: http://127.0.0.1:8000/estoque/
 - Admin Django: http://127.0.0.1:8000/admin/
+- LOGGERAL Insight: http://127.0.0.1:8000/insight/
 
 ## Estrutura
 
@@ -142,6 +149,9 @@ carga-geral/
 - Em producao, prefira uma instancia MySQL gerenciada e mantenha backups automatizados.
 - Configure `PUBLIC_BASE_URL` com a URL publica do sistema para que QR Codes apontem para o dominio online correto.
 - Configure HTTPS no provedor e ative `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True` e `SECURE_HSTS_SECONDS=31536000`.
+- Os arquivos em `/media/` sao privados e passam pela autenticacao e pelas regras de permissao
+  do Django. Nao publique `MEDIA_ROOT` como pasta estatica, compartilhamento aberto ou `alias`
+  direto no proxy reverso.
 
 ## Homologacao na rede com MySQL remoto
 
@@ -152,6 +162,7 @@ Para o teste corporativo, use tres papeis separados:
 - Computadores dos usuarios: acessam o LOGGERAL apenas pelo navegador.
 
 Nos computadores dos usuarios nao e necessario instalar Python, Git ou MySQL.
+A topologia, os requisitos de TLS e o roteiro de homologacao estao detalhados em [DEPLOY.md](DEPLOY.md).
 
 ### 1. Preparar o acesso no servidor MySQL
 
@@ -202,14 +213,28 @@ Execute `iniciar_rede.bat`. O script:
 A TI deve liberar a porta TCP 8000 no Firewall do Windows somente para a rede corporativa.
 Os usuarios acessam o endereco definido em `PUBLIC_BASE_URL`.
 
-O modo `SERVE_MEDIA_LOCALLY=True` existe para homologacao controlada. Para implantacao definitiva,
-use HTTPS e uma infraestrutura aprovada pela TI para servir e proteger os uploads.
+O modo `SERVE_MEDIA_LOCALLY=True` permite que a propria aplicacao entregue os uploads durante a
+homologacao, sempre depois de autenticar o usuario e validar sua permissao. Mesmo com proxy reverso,
+nao crie uma rota publica para `/media/`. Para implantacao definitiva, use HTTPS e mantenha essa
+rota encaminhada ao Django; uma eventual otimizacao com entrega interna pelo proxy deve preservar a
+autorizacao feita pela aplicacao.
 
 ## Uso offline
 
 - As bibliotecas de interface usadas pelas telas ficam em `static/vendor/`, entao Bootstrap, Bootstrap Icons, jQuery, DataTables, Chart.js e html5-qrcode nao dependem de CDN.
-- A consulta auxiliar da Praticagem salva um cache em `media/cache/praticagem_navios.json`. Sem internet, o sistema usa o ultimo cache disponivel.
 - O sistema requer acesso ao servidor MySQL. A pasta `media/` ainda deve ser copiada ou disponibilizada em armazenamento compartilhado.
+- O LOGGERAL Insight nao chama servicos de IA, nao usa chave de API e nao envia os registros para
+  terceiros. O scikit-learn e instalado como dependencia local.
+
+Para montar o pacote de dependencias em um computador Windows com internet:
+
+```powershell
+.\preparar_pacote_offline.ps1
+```
+
+Copie o projeto e a pasta `wheelhouse` resultante para o servidor LOGGERAL. Quando encontra essa
+pasta, `iniciar_rede.bat` instala as dependencias sem consultar a internet. Use a mesma arquitetura
+do Windows e uma versao compativel do Python nos computadores de preparacao e destino.
 
 ## Validacao funcional
 
@@ -222,6 +247,7 @@ Para validar os principais fluxos do sistema, recomenda-se verificar:
 - Controle de certificacoes.
 - Regras de permissao por perfil.
 - Registro de auditoria das acoes.
+- Alertas explicaveis e classificacao do LOGGERAL Insight.
 - Execucao local por `HistoricoNavios.exe`.
 
 Os resultados podem ser associados aos requisitos descritos em [docs/requisitos.md](docs/requisitos.md) e ao plano de testes em [docs/plano_de_testes.md](docs/plano_de_testes.md).
@@ -233,6 +259,7 @@ Variaveis minimas recomendadas:
 ```env
 DJANGO_SECRET_KEY=gere-uma-chave-longa-e-aleatoria
 DEBUG=False
+SERVE_MEDIA_LOCALLY=True
 DATABASE_URL=mysql://usuario:senha@host:3306/historico_navios
 ALLOWED_HOSTS=seudominio.com,www.seudominio.com
 CSRF_TRUSTED_ORIGINS=https://seudominio.com,https://www.seudominio.com
@@ -305,11 +332,31 @@ AD_BIND_DN=CN=svc_loggeral,OU=Contas de Servico,DC=empresa,DC=local
 AD_BIND_PASSWORD=senha-da-conta-de-servico
 AD_USER_SEARCH_BASE=DC=empresa,DC=local
 AD_USER_FILTER=(sAMAccountName={username})
+AD_TLS_VALIDATE=True
+AD_CA_CERT_FILE=C:\certificados\ca-corporativa.pem
+AD_CONNECT_TIMEOUT=5
+AD_RECEIVE_TIMEOUT=10
 ```
 
 Usuarios autenticados no AD sao sincronizados com `auth_user`, mas nao recebem permissoes de
 administrador automaticamente. A conta local continua disponivel como contingencia enquanto o
 backend padrao estiver configurado.
+
+Use `ldaps://` ou habilite `AD_START_TLS=True`; nao use LDAP sem criptografia. A ativacao deve ser
+homologada pela TI com certificado, conta de servico somente-leitura, usuario comum, usuario negado
+e indisponibilidade temporaria do dominio. Nenhum teste local substitui essa homologacao no AD real.
+
+## LOGGERAL Insight
+
+O Insight analisa os registros que o usuario ja pode consultar e destaca inconsistencias ou
+combinacoes operacionais atipicas. Com menos de 30 registros validos, utiliza somente regras
+deterministicas; de 30 a 99, acrescenta estatistica robusta por mediana/MAD; a partir de 100, pode
+usar Isolation Forest treinado em memoria com os proprios dados. Os limites podem ser ajustados no
+`.env`.
+
+Ele e uma ferramenta de apoio a conferencia, nao uma previsao de acidente, fraude ou desempenho
+futuro. Consulte [docs/loggeral_insight.md](docs/loggeral_insight.md) para metricas, criterios,
+limitacoes e configuracao.
 
 ## Executavel Windows
 
@@ -327,9 +374,16 @@ dist\HistoricoNavios.exe
 
 Como usar em outra maquina Windows:
 
-1. Copie `HistoricoNavios.exe` para a maquina.
-2. Execute o arquivo.
-3. O sistema cria os dados locais em `%LOCALAPPDATA%\HistoricoNavios`.
-4. O navegador abre automaticamente em `http://127.0.0.1:8000/` ou na proxima porta livre.
+1. Copie `HistoricoNavios.exe` e `loggeral.env.example` para a mesma pasta na maquina.
+2. Renomeie `loggeral.env.example` para `.env` e preencha `DATABASE_URL` com o host, usuario,
+   senha, porta e nome do banco MySQL/MariaDB fornecidos pela TI.
+3. Execute `HistoricoNavios.exe`. O programa valida a rede e o MySQL antes de abrir o navegador.
+   Se houver falha, exibe a causa e grava detalhes em
+   `%LOCALAPPDATA%\HistoricoNavios\loggeral.log`.
+4. O sistema cria arquivos locais de execucao e, salvo configuracao diferente, de midia em
+   `%LOCALAPPDATA%\HistoricoNavios`.
+5. O navegador abre automaticamente em `http://127.0.0.1:8000/` ou na proxima porta livre.
 
-O executavel usa a conexao MySQL definida em `DATABASE_URL`. A pasta de midias continua em `%LOCALAPPDATA%\HistoricoNavios`, salvo se `MEDIA_ROOT` for configurado.
+O executavel usa exclusivamente a conexao MySQL definida em `DATABASE_URL`. A pasta de midias
+continua em `%LOCALAPPDATA%\HistoricoNavios`, salvo se
+`MEDIA_ROOT` for configurado.

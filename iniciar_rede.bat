@@ -2,15 +2,30 @@
 setlocal
 cd /d "%~dp0"
 set "PYTHONPATH=%CD%"
+set "VENV_PY=venv\Scripts\python.exe"
+set "RECRIAR_VENV="
+set "OMP_NUM_THREADS=1"
+set "OPENBLAS_NUM_THREADS=1"
+set "MKL_NUM_THREADS=1"
 
-if not exist "venv\Scripts\python.exe" (
-    echo Criando ambiente virtual...
-    python -m venv venv
+if not exist "%VENV_PY%" set "RECRIAR_VENV=1"
+if exist "%VENV_PY%" (
+    "%VENV_PY%" --version >nul 2>&1
+    if errorlevel 1 set "RECRIAR_VENV=1"
+)
+
+if defined RECRIAR_VENV (
+    echo Criando ou reparando o ambiente virtual...
+    python -m venv --clear venv
     if errorlevel 1 goto :erro
 )
 
 echo Instalando ou atualizando dependencias...
-"venv\Scripts\python.exe" -m pip install -r requirements.txt
+if exist "wheelhouse\" (
+    "%VENV_PY%" -m pip install --disable-pip-version-check --no-index --find-links=wheelhouse -r requirements.txt
+) else (
+    "%VENV_PY%" -m pip install --disable-pip-version-check -r requirements.txt
+)
 if errorlevel 1 goto :erro
 
 if not exist ".env" (
@@ -24,18 +39,22 @@ if not exist ".env" (
 )
 
 echo Validando configuracao de rede...
-"venv\Scripts\python.exe" manage.py verificar_rede
+"%VENV_PY%" manage.py verificar_rede
 if errorlevel 1 goto :erro
 
 echo Aplicando migrations e preparando o primeiro acesso...
-"venv\Scripts\python.exe" manage.py preparar_acesso_inicial
+"%VENV_PY%" manage.py preparar_acesso_inicial
 if errorlevel 1 goto :erro
 
-"venv\Scripts\python.exe" manage.py verificar_banco
+"%VENV_PY%" manage.py verificar_banco
+if errorlevel 1 goto :erro
+
+echo Validando o motor local LOGGERAL Insight...
+"%VENV_PY%" manage.py verificar_insight
 if errorlevel 1 goto :erro
 
 echo Preparando arquivos estaticos...
-"venv\Scripts\python.exe" manage.py collectstatic --noinput
+"%VENV_PY%" manage.py collectstatic --noinput
 if errorlevel 1 goto :erro
 
 echo.

@@ -210,6 +210,15 @@ cython_debug/
 **/codex/
 **/codex-*/
 
+# Dados operacionais e pacotes locais nunca devem ser versionados.
+/media/
+/wheelhouse/
+/output/
+/tmp/
+/.codex/
+**/.codex/
+/PLTI-012b - Arquitetura de TI To Be - Sistema de Carga Geral.docx
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

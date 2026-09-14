@@ -1,12 +1,10 @@
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
-from django.db import connection
+from django.db import connection, transaction
 
 from estoque.models import Colaborador
 from historico.security import issue_temporary_password
-
 
 DEMO_ACCOUNTS = (
     {

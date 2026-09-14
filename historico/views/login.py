@@ -1,11 +1,19 @@
-from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
+from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
+
 from ..forms import LoginForm
+from ..login_security import (
+    clear_login_failures,
+    is_login_blocked,
+    register_login_failure,
+)
+
 
 def login_view(request):
-    # 🔹 Se o usuário já está logado, manda pro dashboard
+    next_url = _safe_next_url(request)
     if request.user.is_authenticated:
-        return redirect("dashboard")
+        return redirect(next_url or "dashboard")
 
     if request.method == "POST":
         form = LoginForm(request.POST)
@@ -13,16 +21,42 @@ def login_view(request):
             matricula = form.cleaned_data["matricula"]
             senha = form.cleaned_data["senha"]
 
+            if is_login_blocked(request, matricula):
+                form.add_error(
+                    None,
+                    "Muitas tentativas inválidas. Aguarde alguns minutos e tente novamente.",
+                )
+                return render(
+                    request, "historico/login.html", {"form": form}, status=429
+                )
+
             user = authenticate(request, username=matricula, password=senha)
             if user is not None:
+                clear_login_failures(request, matricula)
                 login(request, user)
-                return redirect("dashboard")  # redireciona pro dashboard
-            else:
-                form.add_error(None, "Matrícula ou senha inválidos.")
+                return redirect(next_url or "dashboard")
+
+            register_login_failure(request, matricula)
+            form.add_error(None, "Matrícula ou senha inválidos.")
     else:
         form = LoginForm()
-        
-    return render(request, "historico/login.html", {"form": form})
+
+    return render(
+        request,
+        "historico/login.html",
+        {"form": form, "next": next_url or ""},
+    )
+
+
+def _safe_next_url(request):
+    target = request.POST.get("next") or request.GET.get("next")
+    if target and url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return target
+    return None
 
 
 def logout_view(request):

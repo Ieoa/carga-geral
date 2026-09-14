@@ -96,15 +96,17 @@
 </div>
 
 <script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
+{{ grafico_labels|json_script:"grafico-labels" }}
+{{ grafico_values|json_script:"grafico-values" }}
 <script>
     const ctx = document.getElementById('graficoMateriais').getContext('2d');
     const grafico = new Chart(ctx, {
         type: 'pie',
         data: {
-            labels: {{ grafico_labels|safe }},
+            labels: JSON.parse(document.getElementById('grafico-labels').textContent),
             datasets: [{
                 label: 'Quantidade',
-                data: {{ grafico_values|safe }},
+                data: JSON.parse(document.getElementById('grafico-values').textContent),
                 borderWidth: 1
             }]
         }

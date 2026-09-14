@@ -1,11 +1,11 @@
+from pathlib import Path
 
-from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
-from django.utils import timezone
+from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from pathlib import Path
+from django.utils import timezone
 
 
 def navio_media_path(instance, filename):
@@ -17,35 +17,38 @@ def navio_documento_path(instance, filename):
     navio_id = instance.navio_id or "sem_navio"
     return f"navios/{navio_id}/documentos/{Path(filename).name}"
 
+
 class Colaborador(models.Model):
-    
     CARGO_CHOICES = [
-        ('GER', 'Gerente'),
-        ('CORD', 'Coordenador'),
-        ('SUP', 'Supervisor'),        
-        ('AUX', 'Auxiliar'),
+        ("GER", "Gerente"),
+        ("CORD", "Coordenador"),
+        ("SUP", "Supervisor"),
+        ("AUX", "Auxiliar"),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="colaborador")    
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="colaborador"
+    )
     nome = models.CharField(max_length=50)
     sobrenome = models.CharField(max_length=50)
-    matricula = models.CharField(max_length=20, unique=True)    
+    matricula = models.CharField(max_length=20, unique=True)
     cpf = models.CharField(
         max_length=14,
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^\d{3}\.\d{3}\.\d{3}-\d{2}$',
-                message='CPF deve estar no formato: 000.000.000-00'
+                regex=r"^\d{3}\.\d{3}\.\d{3}-\d{2}$",
+                message="CPF deve estar no formato: 000.000.000-00",
             )
-        ]
+        ],
     )
-    
+
     email = models.EmailField(unique=True)
     cargo = models.CharField(max_length=6, choices=CARGO_CHOICES)
     data_criacao = models.DateTimeField(default=timezone.now)
-    
+
     def __str__(self):
         return f"{self.nome} {self.sobrenome} ({self.matricula})"
+
 
 # Sinal para atualizar o User quando o Colaborador for atualizado
 @receiver(post_save, sender=Colaborador)
@@ -63,49 +66,49 @@ def update_user_for_colaborador(sender, instance, **kwargs):
 
 
 class UserAccess(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='access_control')
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="access_control"
+    )
     must_change_password = models.BooleanField(default=False)
     temporary_password_created_at = models.DateTimeField(null=True, blank=True)
     password_changed_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Controle de acesso de {self.user.username}"
-        
-        
-        
+
+
 class Navio(models.Model):
-    
     BORDO_CHOICES = [
-        ('BB', 'Bombordo'),
-        ('BE', 'Boreste'),
+        ("BB", "Bombordo"),
+        ("BE", "Boreste"),
     ]
-    
+
     navio = models.CharField(max_length=100, blank=True, null=True)
     boca = models.CharField(max_length=50, blank=True, null=True)
     loa = models.CharField(max_length=50, blank=True, null=True)
     armador = models.CharField(max_length=100, blank=True, null=True)
     agencia = models.CharField(max_length=100, blank=True, null=True)
-    bordo = models.CharField(max_length=50, choices=BORDO_CHOICES, blank=True, null=True)
+    bordo = models.CharField(
+        max_length=50, choices=BORDO_CHOICES, blank=True, null=True
+    )
     eta = models.DateTimeField("ETA", blank=True, null=True)
-    pob = models.DateTimeField("POB", blank=True, null=True)    
+    pob = models.DateTimeField("POB", blank=True, null=True)
     inicio_operacao = models.DateTimeField("Início Operação", blank=True, null=True)
     fim_operacao = models.DateTimeField("Termino Operação", blank=True, null=True)
 
-    # Ternos pode ficar opcional também
     ternos = models.IntegerField(blank=True, null=True)
-
-    # Em horas → pode usar CharField se não precisar calcular
     tempo_operacao = models.DurationField("Tempo de Operação", null=True, blank=True)
-
-    # Texto para permitir valores variados
     volume_descarga = models.CharField(max_length=100, blank=True, null=True)
     peso_descarga = models.CharField(max_length=100, blank=True, null=True)
     volume_embarque = models.CharField(max_length=100, blank=True, null=True)
-    peso_embarque = models.CharField(max_length=100, blank=True, null=True)  
+    peso_embarque = models.CharField(max_length=100, blank=True, null=True)
 
-    # Quem cadastrou
     criado_por = models.ForeignKey(
-        "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="navios"
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="navios",
     )
     atualizado_por = models.ForeignKey(
         "auth.User",
@@ -119,12 +122,11 @@ class Navio(models.Model):
         return f"{self.armador or '---'} - {self.navio or '---'}"
 
 
-
 class FotoVideoNavio(models.Model):
     navio = models.ForeignKey(Navio, on_delete=models.CASCADE, related_name="midias")
     arquivo = models.FileField(upload_to=navio_media_path)
     observacao = models.TextField(blank=True, null=True)
-    tipo_peca = models.CharField(max_length=50, blank=True, null=True)  # Novo campo para tipo de peça
+    tipo_peca = models.CharField(max_length=50, blank=True, null=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
     criado_por = models.ForeignKey(
         "auth.User",
@@ -135,14 +137,16 @@ class FotoVideoNavio(models.Model):
     )
 
     def is_image(self):
-        return self.arquivo.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))
+        return self.arquivo.name.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
 
     def is_video(self):
-        return self.arquivo.name.lower().endswith(('.mp4', '.avi', '.mov'))
-    
-    
+        return self.arquivo.name.lower().endswith((".mp4", ".avi", ".mov"))
+
+
 class DocumentoNavio(models.Model):
-    navio = models.ForeignKey(Navio, on_delete=models.CASCADE, related_name="documentos")
+    navio = models.ForeignKey(
+        Navio, on_delete=models.CASCADE, related_name="documentos"
+    )
     arquivo = models.FileField(upload_to=navio_documento_path)
     criado_por = models.ForeignKey(
         "auth.User",

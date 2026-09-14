@@ -1,16 +1,18 @@
-from django.db import models
-from django.contrib.auth.models import User
-from django.core.validators import FileExtensionValidator, RegexValidator
-from django.utils import timezone
-import qrcode
+import calendar
 from io import BytesIO
-from django.core.files import File
-from django.conf import settings
-from django.utils.timezone import now
-from django.urls import reverse
 from pathlib import Path
 from urllib.parse import urljoin
-import calendar
+
+import qrcode
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.files import File
+from django.core.validators import FileExtensionValidator, RegexValidator
+from django.db import models
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.timezone import now
+
 
 class Colaborador(models.Model):
     user = models.OneToOneField(
@@ -18,7 +20,7 @@ class Colaborador(models.Model):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='estoque_colaborador',
+        related_name="estoque_colaborador",
     )
     matricula = models.CharField(max_length=20, unique=True)
     nome = models.CharField(max_length=100)
@@ -28,64 +30,62 @@ class Colaborador(models.Model):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r'^\d{3}\.\d{3}\.\d{3}-\d{2}$',
-                message='CPF deve estar no formato: 000.000.000-00'
+                regex=r"^\d{3}\.\d{3}\.\d{3}-\d{2}$",
+                message="CPF deve estar no formato: 000.000.000-00",
             )
-        ]
+        ],
     )
-    data_criacao = models.DateTimeField(default=timezone.now)  # Correção aqui
-    
+    data_criacao = models.DateTimeField(default=timezone.now)
+
     AREA_CHOICES = [
-        ('OP', 'Operações'),
-        ('ARM', 'Armazém'),
-        ('MAT', 'Materiais'),
-        ('MANU', 'Manutenção'),
+        ("OP", "Operações"),
+        ("ARM", "Armazém"),
+        ("MAT", "Materiais"),
+        ("MANU", "Manutenção"),
     ]
-    
+
     CARGO_CHOICES = [
-        ('GER', 'Gerente'),
-        ('CORD', 'Coordenador'),
-        ('SUP', 'Supervisor'),
-        ('OPR1', 'Operador I'),
-        ('OPR2', 'Operador II'),
-        ('AUX', 'Auxiliar'),
+        ("GER", "Gerente"),
+        ("CORD", "Coordenador"),
+        ("SUP", "Supervisor"),
+        ("OPR1", "Operador I"),
+        ("OPR2", "Operador II"),
+        ("AUX", "Auxiliar"),
     ]
-    
+
     area = models.CharField(max_length=6, choices=AREA_CHOICES)
     cargo = models.CharField(max_length=6, choices=CARGO_CHOICES)
-    
+
     def save(self, *args, **kwargs):
-        # Formata o nome com iniciais maiúsculas
-        self.nome = ' '.join(word.capitalize() for word in self.nome.split())
-        if not self.data_criacao:  # Se não tiver data de criação
+        self.nome = " ".join(word.capitalize() for word in self.nome.split())
+        if not self.data_criacao:
             self.data_criacao = timezone.now()
         super().save(*args, **kwargs)
-    
+
     def __str__(self):
         return f"{self.nome} ({self.matricula})"
-    
-    
-
-
-# Crienado modelo de registro de equipamentos junto com QR Code
 
 
 def caminho_foto(instance, filename):
     registro = instance.registro or "novo"
-    return f'equipamentos/{registro}/fotos/{Path(filename).name}'
+    return f"equipamentos/{registro}/fotos/{Path(filename).name}"
+
 
 def caminho_qrcode(instance, filename):
     registro = instance.registro or "novo"
-    return f'equipamentos/{registro}/qrcodes/{Path(filename).name}'
+    return f"equipamentos/{registro}/qrcodes/{Path(filename).name}"
+
 
 def caminho_anexo(instance, filename):
+    """Mantido para compatibilidade com a migration histórica 0008."""
     registro = instance.registro or "novo"
-    return f'equipamentos/{registro}/anexos/{Path(filename).name}'
+    return f"equipamentos/{registro}/anexos/{Path(filename).name}"
 
 
 def caminho_certificacao(instance, filename):
     equipamento_id = instance.equipamento_id or "sem_equipamento"
     return f"equipamentos/{equipamento_id}/certificacoes/{Path(filename).name}"
+
 
 class Equipamento(models.Model):
     registro = models.AutoField(primary_key=True)  # número único automático
@@ -95,11 +95,11 @@ class Equipamento(models.Model):
     descricao_uso = models.TextField(blank=True, null=True)
 
     TIPO_CHOICES = [
-        ('ELETRICO', 'Elétrico'),
-        ('MANUAL', 'Manual'),
-        ('HIDRAULICO', 'Hidráulico'),
-        ('PNEUMATICO', 'Pneumático'),
-        ('OUTRO', 'Outro'),
+        ("ELETRICO", "Elétrico"),
+        ("MANUAL", "Manual"),
+        ("HIDRAULICO", "Hidráulico"),
+        ("PNEUMATICO", "Pneumático"),
+        ("OUTRO", "Outro"),
     ]
     tipo_equipamento = models.CharField(max_length=20, choices=TIPO_CHOICES)
 
@@ -127,10 +127,13 @@ class Equipamento(models.Model):
         return f"{self.equipamento} ({self.identificador})"
 
     def get_absolute_url(self):
-        return reverse('estoque:detalhe_equipamento', args=[str(self.pk)])
+        return reverse("estoque:detalhe_equipamento", args=[str(self.pk)])
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+
+        if self.qrcode:
+            return
 
         detail_path = self.get_absolute_url()
         public_base_url = getattr(settings, "PUBLIC_BASE_URL", "")
@@ -141,14 +144,17 @@ class Equipamento(models.Model):
         )
         qr = qrcode.make(qr_data)
         buffer = BytesIO()
-        qr.save(buffer, format='PNG')
-        file_name = f'qrcode_{self.registro}.png'
+        qr.save(buffer, format="PNG")
+        file_name = f"qrcode_{self.registro}.png"
         self.qrcode.save(file_name, File(buffer), save=False)
 
         super().save(update_fields=["qrcode"], using=kwargs.get("using"))
 
+
 class Certificacao(models.Model):
-    equipamento = models.ForeignKey(Equipamento, on_delete=models.CASCADE, related_name='certificacoes')
+    equipamento = models.ForeignKey(
+        Equipamento, on_delete=models.CASCADE, related_name="certificacoes"
+    )
     nome_certificado = models.CharField(max_length=100)  # Ex: ISO 9001
     data_certificacao = models.DateField()
     data_vencimento = models.DateField(null=True, blank=True)
@@ -159,18 +165,18 @@ class Certificacao(models.Model):
         upload_to=caminho_certificacao,
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(['pdf'])],
+        validators=[FileExtensionValidator(["pdf"])],
     )
     ativa = models.BooleanField(default=True)
     certificacao_anterior = models.ForeignKey(
-        'self',
+        "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='renovacoes',
+        related_name="renovacoes",
     )
     notificar_por_email = models.BooleanField(default=False)
-    email_notificacao = models.EmailField(blank=True, default='')
+    email_notificacao = models.EmailField(blank=True, default="")
     notificacao_enviada_em = models.DateTimeField(null=True, blank=True)
     vencimento_notificado = models.DateField(null=True, blank=True)
     criado_por = models.ForeignKey(
@@ -185,7 +191,7 @@ class Certificacao(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='certificacoes_atualizadas',
+        related_name="certificacoes_atualizadas",
     )
 
     def __str__(self):
@@ -201,15 +207,15 @@ class Certificacao(models.Model):
 
     def status_vencimento_em(self, referencia=None):
         if not self.ativa:
-            return 'substituido'
+            return "substituido"
         referencia = referencia or timezone.localdate()
         if not self.data_vencimento:
-            return 'sem_vencimento'
+            return "sem_vencimento"
         if self.data_vencimento < referencia:
-            return 'vencido'
+            return "vencido"
         if self.data_vencimento <= self.adicionar_meses(referencia, 3):
-            return 'vence_em_3_meses'
-        return 'valido'
+            return "vence_em_3_meses"
+        return "valido"
 
     @property
     def status_vencimento(self):
@@ -218,21 +224,21 @@ class Certificacao(models.Model):
     @property
     def rotulo_status_vencimento(self):
         return {
-            'vencido': 'Vencido',
-            'vence_em_3_meses': 'Vence em até 3 meses',
-            'valido': 'Válido',
-            'sem_vencimento': 'Sem vencimento',
-            'substituido': 'Substituído',
+            "vencido": "Vencido",
+            "vence_em_3_meses": "Vence em até 3 meses",
+            "valido": "Válido",
+            "sem_vencimento": "Sem vencimento",
+            "substituido": "Substituído",
         }[self.status_vencimento]
 
     @property
     def classe_status_vencimento(self):
         return {
-            'vencido': 'danger',
-            'vence_em_3_meses': 'warning',
-            'valido': 'success',
-            'sem_vencimento': 'secondary',
-            'substituido': 'dark',
+            "vencido": "danger",
+            "vence_em_3_meses": "warning",
+            "valido": "success",
+            "sem_vencimento": "secondary",
+            "substituido": "dark",
         }[self.status_vencimento]
 
     @property
@@ -240,6 +246,3 @@ class Certificacao(models.Model):
         if not self.data_vencimento:
             return None
         return (self.data_vencimento - timezone.localdate()).days
-    
-    
-  

@@ -26,7 +26,6 @@ Validar se as principais funcionalidades do sistema atendem aos requisitos opera
 ## Testes automatizados recomendados
 
 - Testar geracao de QR Code com `PUBLIC_BASE_URL`.
-- Testar fallback de scraping/cache da consulta auxiliar.
 - Testar permissao de edicao por dono do registro.
 - Testar restricao de exclusao para usuario sem perfil de gestor.
 - Testar criacao de auditoria em cadastro, alteracao e exclusao.
