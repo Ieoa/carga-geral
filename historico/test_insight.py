@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import NavioForm
-from .models import FotoVideoNavio, Navio
+from .models import FotoVideoNavio, Navio, UserAccess
 from .services.insight import analyze_navios, evaluate_rules, extract_features, parse_localized_number
 from .uploads import validate_media_upload, validate_pdf_upload
 
@@ -123,6 +123,13 @@ class InsightViewTests(TestCase):
         self.manager = User.objects.create_user("gestor", password="SenhaForte!2026", is_staff=True)
         self.employee = User.objects.create_user("empregado", password="SenhaForte!2026")
         self.other = User.objects.create_user("outro", password="SenhaForte!2026")
+        UserAccess.objects.bulk_create(
+            [
+                UserAccess(user=self.manager),
+                UserAccess(user=self.employee),
+                UserAccess(user=self.other),
+            ]
+        )
         start = timezone.make_aware(datetime(2026, 4, 10, 8, 0))
         self.owned = Navio.objects.create(
             navio="Navio próprio",

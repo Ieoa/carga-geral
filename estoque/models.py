@@ -7,7 +7,7 @@ import qrcode
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files import File
-from django.core.validators import FileExtensionValidator, RegexValidator
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -24,17 +24,6 @@ class Colaborador(models.Model):
     )
     matricula = models.CharField(max_length=20, unique=True)
     nome = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    cpf = models.CharField(
-        max_length=14,
-        unique=True,
-        validators=[
-            RegexValidator(
-                regex=r"^\d{3}\.\d{3}\.\d{3}-\d{2}$",
-                message="CPF deve estar no formato: 000.000.000-00",
-            )
-        ],
-    )
     data_criacao = models.DateTimeField(default=timezone.now)
 
     AREA_CHOICES = [

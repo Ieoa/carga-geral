@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -49,6 +49,8 @@ class EquipmentAutocompleteTests(TestCase):
         self.other_user = User.objects.create_user(
             "outro_busca", password="SenhaForte!2026"
         )
+        UserAccess.objects.create(user=self.user)
+        UserAccess.objects.create(user=self.other_user)
         self.client.force_login(self.user)
 
     def test_rejects_non_ajax_requests_cleanly(self):
@@ -86,19 +88,30 @@ class EquipmentAutocompleteTests(TestCase):
 class UserAccessFlowTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser(
-            "admin_qa", email="admin.qa@empresa.com", password="AdminQA!2026"
+            "admin_qa", password="AdminQA!2026"
         )
         self.employee = User.objects.create_user(
-            "comum_qa", email="comum.qa@empresa.com", password="ComumQA!2026"
+            "comum_qa", password="ComumQA!2026"
         )
+        self.manager = User.objects.create_user(
+            "gestor_qa", password="GestorQA!2026"
+        )
+        UserAccess.objects.create(user=self.admin)
+        UserAccess.objects.create(user=self.employee)
+        UserAccess.objects.create(user=self.manager)
         Colaborador.objects.create(
             user=self.employee,
             matricula="comum_qa",
             nome="Usuario Comum QA",
-            email="comum.qa@empresa.com",
-            cpf="111.222.333-44",
             area="OP",
             cargo="AUX",
+        )
+        Colaborador.objects.create(
+            user=self.manager,
+            matricula="gestor_qa",
+            nome="Gestor QA",
+            area="OP",
+            cargo="SUP",
         )
 
     def test_admin_and_employee_can_log_in(self):
@@ -121,7 +134,7 @@ class UserAccessFlowTests(TestCase):
         )
         self.assertRedirects(employee_response, reverse("dashboard"))
 
-    def test_anonymous_and_employee_cannot_create_accounts(self):
+    def test_anonymous_employee_and_manager_cannot_create_accounts(self):
         registration_url = reverse("estoque:cadastrar_colaborador")
         anonymous_response = self.client.get(registration_url)
         self.assertRedirects(
@@ -129,9 +142,11 @@ class UserAccessFlowTests(TestCase):
             f"{reverse('login')}?next={registration_url}",
         )
 
-        self.client.force_login(self.employee)
-        employee_response = self.client.get(registration_url)
-        self.assertRedirects(employee_response, reverse("estoque:dashboard"))
+        for user in (self.employee, self.manager):
+            client = Client()
+            client.force_login(user)
+            response = client.get(registration_url)
+            self.assertRedirects(response, reverse("estoque:dashboard"))
 
     @patch(
         "historico.security.generate_temporary_password",
@@ -146,8 +161,6 @@ class UserAccessFlowTests(TestCase):
             {
                 "matricula": "novo_qa",
                 "nome": "Novo Usuario QA",
-                "email": "novo.qa@empresa.com",
-                "cpf": "555.666.777-88",
                 "area": "MAT",
                 "cargo": "OPR1",
             },
@@ -185,6 +198,139 @@ class UserAccessFlowTests(TestCase):
         access = UserAccess.objects.get(user=new_user)
         self.assertTrue(new_user.check_password("NovaSenhaQA!2026Segura"))
         self.assertFalse(access.must_change_password)
+
+    def test_registration_form_does_not_collect_sensitive_data(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("estoque:cadastrar_colaborador"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="cpf"')
+        self.assertNotContains(response, 'name="email"')
+
+    @override_settings(AD_AUTH_ENABLED=True)
+    def test_admin_pre_authorizes_ad_user_without_local_credentials(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("estoque:cadastrar_colaborador"),
+            {
+                "matricula": "ad_qa",
+                "nome": "Usuario AD QA",
+                "area": "OP",
+                "cargo": "AUX",
+            },
+        )
+
+        self.assertRedirects(response, reverse("estoque:cadastrar_colaborador"))
+        user = User.objects.get(username="ad_qa")
+        self.assertFalse(user.has_usable_password())
+        self.assertEqual(user.email, "")
+        self.assertTrue(UserAccess.objects.filter(user=user).exists())
+
+    def test_registered_users_list_includes_admin_and_employee(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("estoque:listar_colaboradores"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin_qa")
+        self.assertContains(response, "comum_qa")
+
+    def test_registered_users_list_requires_authentication(self):
+        list_url = reverse("estoque:listar_colaboradores")
+
+        response = self.client.get(list_url)
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={list_url}",
+        )
+
+    def test_employee_and_manager_cannot_view_registered_users(self):
+        list_url = reverse("estoque:listar_colaboradores")
+        for user in (self.employee, self.manager):
+            client = Client()
+            client.force_login(user)
+
+            response = client.get(list_url)
+
+            self.assertRedirects(response, reverse("estoque:dashboard"))
+            self.assertNotContains(response, "admin_qa", status_code=302)
+            self.assertNotContains(response, "comum_qa", status_code=302)
+
+    def test_user_management_menu_is_hidden_from_employee_and_manager(self):
+        for user in (self.employee, self.manager):
+            client = Client()
+            client.force_login(user)
+
+            response = client.get(reverse("dashboard"))
+
+            self.assertEqual(response.status_code, 200)
+            self.assertNotContains(response, "Usuários cadastrados")
+            self.assertNotContains(response, "Autorizar usuário")
+
+    def test_staff_admin_can_view_only_locally_authorized_accounts(self):
+        staff_admin = User.objects.create_user(
+            "staff_qa",
+            password="StaffQA!2026",
+            is_staff=True,
+        )
+        UserAccess.objects.create(user=staff_admin)
+        User.objects.create_user("fora_useraccess", password="ForaQA!2026")
+        client = Client()
+        client.force_login(staff_admin)
+
+        response = client.get(reverse("estoque:listar_colaboradores"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin_qa")
+        self.assertContains(response, "comum_qa")
+        self.assertContains(response, "gestor_qa")
+        self.assertContains(response, "staff_qa")
+        self.assertNotContains(response, "fora_useraccess")
+
+    def test_registered_users_page_does_not_expose_sensitive_fields(self):
+        self.admin.email = "admin.sensivel@empresa.com"
+        self.admin.save(update_fields=["email"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("estoque:listar_colaboradores"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "admin.sensivel@empresa.com")
+        self.assertNotContains(response, "CPF")
+        self.assertNotContains(response, "<th>Senha</th>", html=True)
+        self.assertNotContains(response, self.admin.password)
+
+    def test_admin_revocation_removes_user_and_access_record(self):
+        employee_id = self.employee.pk
+        collaborator_id = self.employee.estoque_colaborador.pk
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("estoque:excluir_colaborador", args=[collaborator_id])
+        )
+
+        self.assertRedirects(response, reverse("estoque:listar_colaboradores"))
+        self.assertFalse(User.objects.filter(pk=employee_id).exists())
+        self.assertFalse(UserAccess.objects.filter(user_id=employee_id).exists())
+
+    def test_employee_and_manager_cannot_edit_or_revoke_users(self):
+        collaborator_id = self.employee.estoque_colaborador.pk
+        edit_url = reverse("estoque:editar_colaborador", args=[collaborator_id])
+        revoke_url = reverse("estoque:excluir_colaborador", args=[collaborator_id])
+
+        for user in (self.employee, self.manager):
+            client = Client()
+            client.force_login(user)
+
+            self.assertRedirects(client.get(edit_url), reverse("estoque:dashboard"))
+            self.assertRedirects(
+                client.post(revoke_url),
+                reverse("estoque:dashboard"),
+            )
+            self.assertTrue(User.objects.filter(pk=self.employee.pk).exists())
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -281,6 +427,8 @@ class CertificacaoViewTests(TestCase):
             "colaborador", email="colaborador@empresa.com", password="senha"
         )
         self.other_user = User.objects.create_user("outro", password="senha")
+        UserAccess.objects.create(user=self.user)
+        UserAccess.objects.create(user=self.other_user)
         self.equipamento = Equipamento.objects.create(
             equipamento="Manilha",
             identificador="MAN-001",

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -20,8 +20,9 @@ from django.test import (
     override_settings,
 )
 from django.urls import reverse
+from ldap3.core.exceptions import LDAPException
 
-from config.auth_backends import ActiveDirectoryBackend
+from config.auth_backends import ActiveDirectoryBackend, RegisteredUserModelBackend
 from estoque.models import Certificacao, Equipamento
 from estoque.services.certificate_payloads import parse_certificate_payloads
 from historico.models import UserAccess
@@ -124,6 +125,7 @@ class LoginHardeningTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user("operador", password="SenhaCorreta!2026")
+        UserAccess.objects.create(user=self.user)
 
     def tearDown(self):
         cache.clear()
@@ -173,6 +175,19 @@ class LoginHardeningTests(TestCase):
             )
             self.assertEqual(response.status_code, 200)
 
+    def test_local_backend_rejects_user_outside_authorized_list(self):
+        outsider = User.objects.create_user(
+            "fora_da_lista", password="SenhaCorreta!2026"
+        )
+
+        authenticated = RegisteredUserModelBackend().authenticate(
+            None,
+            username=outsider.username,
+            password="SenhaCorreta!2026",
+        )
+
+        self.assertIsNone(authenticated)
+
     def test_stock_entry_reuses_main_login_and_returns_to_stock(self):
         stock_entry = reverse("estoque:login")
         stock_dashboard = reverse("estoque:dashboard")
@@ -211,6 +226,18 @@ class LoginHardeningTests(TestCase):
 
         self.assertRedirects(success, reverse("dashboard"))
 
+    @patch("historico.views.login.authenticate")
+    def test_unknown_user_is_rejected_without_calling_any_backend(self, authenticate):
+        response = self.client.post(
+            reverse("login"),
+            {"matricula": "nao_cadastrado", "senha": "QualquerSenha!2026"},
+            REMOTE_ADDR="10.0.0.21",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Matrícula ou senha inválidos")
+        authenticate.assert_not_called()
+
 
 class ProtectedEquipmentMediaTests(TestCase):
     def setUp(self):
@@ -218,6 +245,13 @@ class ProtectedEquipmentMediaTests(TestCase):
         self.other = User.objects.create_user("outro_media", password="SenhaForte!2026")
         self.manager = User.objects.create_user(
             "gestor_media", password="SenhaForte!2026", is_staff=True
+        )
+        UserAccess.objects.bulk_create(
+            [
+                UserAccess(user=self.owner),
+                UserAccess(user=self.other),
+                UserAccess(user=self.manager),
+            ]
         )
 
     def test_equipment_and_certificate_files_are_scoped_to_owner_and_manager(self):
@@ -300,54 +334,77 @@ class InitialAccessCollisionTests(TestCase):
         self.assertFalse(existing.is_superuser)
 
 
+class LDAPConnectionSecurityTests(SimpleTestCase):
+    @override_settings(AD_RECEIVE_TIMEOUT=10)
+    @patch("config.auth_backends.Connection")
+    def test_starttls_is_completed_before_credentials_are_bound(self, connection_class):
+        connection = connection_class.return_value
+        connection.start_tls.return_value = True
+        connection.bind.return_value = True
+        connection.bound = True
+
+        with ActiveDirectoryBackend._connection(
+            "server",
+            "glibra\\leonardo",
+            "senha",
+            start_tls=True,
+        ):
+            pass
+
+        self.assertEqual(
+            connection.method_calls,
+            [call.open(), call.start_tls(), call.bind(), call.unbind()],
+        )
+
+    @override_settings(AD_RECEIVE_TIMEOUT=10)
+    @patch("config.auth_backends.Connection")
+    def test_failed_bind_never_authenticates(self, connection_class):
+        connection = connection_class.return_value
+        connection.start_tls.return_value = True
+        connection.bind.return_value = False
+        connection.bound = False
+
+        with self.assertRaises(LDAPException):
+            with ActiveDirectoryBackend._connection(
+                "server",
+                "glibra\\leonardo",
+                "senha-incorreta",
+                start_tls=True,
+            ):
+                pass
+
+
 class ActiveDirectoryBackendTests(TestCase):
     ad_settings = {
         "AD_AUTH_ENABLED": True,
-        "AD_SERVER_URI": "ldaps://ad.empresa.local:636",
-        "AD_BIND_DN": "CN=svc_loggeral,OU=Servicos,DC=empresa,DC=local",
-        "AD_BIND_PASSWORD": "senha-servico",
-        "AD_USER_SEARCH_BASE": "OU=Usuarios,DC=empresa,DC=local",
-        "AD_USER_FILTER": "(sAMAccountName={username})",
-        "AD_START_TLS": False,
-        "AD_CREATE_USERS": True,
-        "AD_ALWAYS_UPDATE_USER": True,
+        "AD_SERVER_URI": "ldap://glibra.corp:389",
+        "AD_DIRECT_BIND": True,
+        "AD_DOMAIN": "glibra",
+        "AD_START_TLS": True,
         "AD_TLS_VALIDATE": True,
-        "AD_CA_CERT_FILE": "C:/certificados/empresa-ca.pem",
+        "AD_CA_CERT_FILE": "C:/certificados/glibra-ca.pem",
         "AD_CONNECT_TIMEOUT": 5,
         "AD_RECEIVE_TIMEOUT": 10,
     }
 
     @override_settings(**ad_settings)
-    def test_ldaps_validates_certificate_and_clears_temporary_password_state(self):
+    def test_direct_bind_uses_glibra_account_and_keeps_local_profile(self):
         user = User.objects.create_user(
-            "leonardo", email="antigo@empresa.com", password="Temporaria!2026"
+            "leonardo",
+            first_name="Leonardo",
+            last_name="Marins",
+            password="Temporaria!2026",
         )
         access = UserAccess.objects.create(
             user=user,
             must_change_password=True,
         )
-
-        entry = MagicMock()
-        entry.entry_dn = "CN=Leonardo,OU=Usuarios,DC=empresa,DC=local"
-        entry.entry_attributes_as_dict = {
-            "sAMAccountName": ["leonardo"],
-            "givenName": ["Leonardo"],
-            "sn": ["Marins"],
-            "mail": ["leonardo@empresa.com"],
-        }
-        service_connection = MagicMock()
-        service_connection.search.return_value = True
-        service_connection.entries = [entry]
-        user_connection = MagicMock()
         connection_calls = []
 
         @contextmanager
         def fake_connection(server, username, password, *, start_tls):
             connection_calls.append((server, username, password, start_tls))
-            if username == self.ad_settings["AD_BIND_DN"]:
-                yield service_connection
-            else:
-                yield user_connection
+            yield MagicMock()
 
         backend = ActiveDirectoryBackend()
         tls_token = object()
@@ -368,37 +425,53 @@ class ActiveDirectoryBackendTests(TestCase):
         self.assertEqual(authenticated.pk, user.pk)
         tls_class.assert_called_once_with(
             validate=ssl.CERT_REQUIRED,
-            ca_certs_file="C:/certificados/empresa-ca.pem",
+            ca_certs_file="C:/certificados/glibra-ca.pem",
         )
         server_class.assert_called_once()
         _, server_kwargs = server_class.call_args
-        self.assertEqual(server_class.call_args.args[0], "ad.empresa.local")
-        self.assertEqual(server_kwargs["port"], 636)
-        self.assertTrue(server_kwargs["use_ssl"])
+        self.assertEqual(server_class.call_args.args[0], "glibra.corp")
+        self.assertEqual(server_kwargs["port"], 389)
+        self.assertFalse(server_kwargs["use_ssl"])
         self.assertIs(server_kwargs["tls"], tls_token)
         self.assertEqual(server_kwargs["connect_timeout"], 5)
-        self.assertEqual(len(connection_calls), 2)
-        self.assertTrue(all(not item[3] for item in connection_calls))
+        self.assertEqual(
+            connection_calls,
+            [(server_token, "glibra\\leonardo", "SenhaDoAD!2026", True)],
+        )
 
         user.refresh_from_db()
         access.refresh_from_db()
         self.assertFalse(user.has_usable_password())
         self.assertEqual(user.first_name, "Leonardo")
         self.assertEqual(user.last_name, "Marins")
-        self.assertEqual(user.email, "leonardo@empresa.com")
+        self.assertEqual(user.email, "")
         self.assertFalse(access.must_change_password)
         self.assertIsNone(access.temporary_password_created_at)
         self.assertIsNotNone(access.password_changed_at)
 
+    @override_settings(**ad_settings)
+    def test_unknown_user_does_not_even_create_ldap_server(self):
+        backend = ActiveDirectoryBackend()
+        with patch("config.auth_backends.Server") as server_class:
+            authenticated = backend.authenticate(
+                None,
+                username="nao_cadastrado",
+                password="SenhaDoAD!2026",
+            )
+
+        self.assertIsNone(authenticated)
+        server_class.assert_not_called()
+
     @override_settings(
         AD_AUTH_ENABLED=True,
-        AD_SERVER_URI="ldap://ad.empresa.local:389",
-        AD_BIND_DN="CN=svc,DC=empresa,DC=local",
-        AD_BIND_PASSWORD="senha-servico",
-        AD_USER_SEARCH_BASE="DC=empresa,DC=local",
+        AD_SERVER_URI="ldap://glibra.corp:389",
+        AD_DIRECT_BIND=True,
+        AD_DOMAIN="glibra",
         AD_START_TLS=False,
     )
     def test_unencrypted_ldap_is_refused_before_any_connection(self):
+        user = User.objects.create_user("leonardo", password="Temporaria!2026")
+        UserAccess.objects.create(user=user)
         backend = ActiveDirectoryBackend()
         with patch("config.auth_backends.Server") as server_class:
             authenticated = backend.authenticate(

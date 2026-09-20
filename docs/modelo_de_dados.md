@@ -4,8 +4,9 @@
 
 | Entidade | Finalidade |
 | --- | --- |
-| User | Usuario base do Django para autenticacao. |
-| Colaborador | Perfil operacional do usuario, com matricula, CPF, cargo e contato. |
+| User | Conta local previamente autorizada; a senha corporativa permanece no Active Directory. |
+| UserAccess | Controle local que define quais contas podem consultar o Active Directory. |
+| Colaborador | Perfil operacional minimo, com matricula, nome, area e cargo. |
 | Navio | Registro principal de navios e dados operacionais. |
 | FotoVideoNavio | Midias vinculadas a um navio. |
 | DocumentoNavio | Documentos vinculados a um navio. |
@@ -33,7 +34,6 @@ erDiagram
     USER {
         int id
         string username
-        string email
         string first_name
         string last_name
     }

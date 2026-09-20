@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
+from historico.models import UserAccess
 from historico.security import create_user_with_temporary_password
 
 
@@ -29,6 +30,7 @@ class Command(BaseCommand):
                 user.is_staff = True
                 user.is_superuser = True
                 user.save(update_fields=["is_staff", "is_superuser"])
+            UserAccess.objects.get_or_create(user=user)
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Administrador inicial '{username}' ja existe; senha preservada."
@@ -41,7 +43,6 @@ class Command(BaseCommand):
 
         user, temporary_password = create_user_with_temporary_password(
             username=username,
-            email="admin.inicial@localhost",
             first_name="Administrador",
             last_name="Local",
         )

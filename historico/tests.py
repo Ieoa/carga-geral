@@ -38,7 +38,6 @@ class AccessSecurityTests(TestCase):
     def test_temporary_password_is_random_and_requires_change(self):
         user, temporary_password = create_user_with_temporary_password(
             username="matricula01",
-            email="usuario@empresa.com",
             first_name="Usuario",
         )
 
@@ -50,7 +49,6 @@ class AccessSecurityTests(TestCase):
     def test_user_is_redirected_until_password_is_changed(self):
         user, temporary_password = create_user_with_temporary_password(
             username="matricula02",
-            email="usuario2@empresa.com",
         )
         self.client.force_login(user)
 
@@ -142,6 +140,21 @@ class AccessSecurityTests(TestCase):
         )
         self.assertEqual(User.objects.filter(username="admin_inicial").count(), 1)
         self.assertIn("senha preservada", second_output.getvalue())
+
+    def test_initial_setup_promotes_and_authorizes_explicit_existing_user(self):
+        user = User.objects.create_user("admin_ad", password="senha-existente")
+
+        call_command(
+            "preparar_acesso_inicial",
+            username="admin_ad",
+            skip_migrate=True,
+            promote_existing=True,
+        )
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(UserAccess.objects.filter(user=user).exists())
 
 
 class DesktopLauncherSecurityTests(SimpleTestCase):

@@ -10,7 +10,6 @@ DEMO_ACCOUNTS = (
     {
         'username': 'admin_demo',
         'nome': 'Administrador Demo',
-        'email': 'admin.demo@exemplo.local',
         'profile': 'Administrador',
         'is_staff': True,
         'is_superuser': True,
@@ -18,16 +17,12 @@ DEMO_ACCOUNTS = (
     {
         'username': 'gestor_demo',
         'nome': 'Gestor Demo',
-        'email': 'gestor.demo@exemplo.local',
-        'cpf': '900.000.000-01',
         'cargo': 'GER',
         'profile': 'Gestor',
     },
     {
         'username': 'comum_demo',
         'nome': 'Colaborador Demo',
-        'email': 'comum.demo@exemplo.local',
-        'cpf': '900.000.000-02',
         'cargo': 'AUX',
         'profile': 'Colaborador',
     },
@@ -55,7 +50,7 @@ class Command(BaseCommand):
                 names = account['nome'].split(maxsplit=1)
                 user.first_name = names[0]
                 user.last_name = names[1] if len(names) > 1 else ''
-                user.email = account['email']
+                user.email = ''
                 user.is_active = True
                 user.is_staff = account.get('is_staff', False)
                 user.is_superuser = account.get('is_superuser', False)
@@ -67,8 +62,6 @@ class Command(BaseCommand):
                         defaults={
                             'matricula': account['username'],
                             'nome': account['nome'],
-                            'email': account['email'],
-                            'cpf': account['cpf'],
                             'area': 'OP',
                             'cargo': account['cargo'],
                         },

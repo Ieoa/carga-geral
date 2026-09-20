@@ -8,6 +8,7 @@ from ..login_security import (
     is_login_blocked,
     register_login_failure,
 )
+from ..security import find_authorized_user
 
 
 def login_view(request):
@@ -30,7 +31,21 @@ def login_view(request):
                     request, "historico/login.html", {"form": form}, status=429
                 )
 
-            user = authenticate(request, username=matricula, password=senha)
+            authorized_user = find_authorized_user(matricula)
+            if authorized_user is None:
+                register_login_failure(request, matricula)
+                form.add_error(None, "Matrícula ou senha inválidos.")
+                return render(
+                    request,
+                    "historico/login.html",
+                    {"form": form, "next": next_url or ""},
+                )
+
+            user = authenticate(
+                request,
+                username=authorized_user.username,
+                password=senha,
+            )
             if user is not None:
                 clear_login_failures(request, matricula)
                 login(request, user)

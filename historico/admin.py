@@ -13,7 +13,7 @@ class ColaboradorForm(forms.ModelForm):
 class ColaboradorAdmin(admin.ModelAdmin):
     form = ColaboradorForm
     readonly_fields = ['user']  # Exibe o user após salvar
-    list_display = ['nome', 'sobrenome', 'matricula', 'cpf']
+    list_display = ['nome', 'sobrenome', 'matricula', 'cargo']
 
 admin.site.register(Colaborador, ColaboradorAdmin)
 

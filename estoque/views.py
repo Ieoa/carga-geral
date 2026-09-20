@@ -6,6 +6,7 @@ Organizado seguindo boas práticas Pythonicas com imports agrupados e comentári
 import logging
 
 # Django
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -25,8 +26,13 @@ from historico.permissions import (
     can_manage_users,
     filter_owned_queryset,
     is_manager,
+    profile_role,
 )
-from historico.security import create_user_with_temporary_password
+from historico.security import (
+    authorize_user_for_ad,
+    create_pre_authorized_ad_user,
+    create_user_with_temporary_password,
+)
 
 # Local Apps
 from .forms import (
@@ -87,17 +93,24 @@ def cadastrar_colaborador(request):
                     ).first()
                     temporary_password = None
                     if user is None:
-                        user, temporary_password = create_user_with_temporary_password(
-                            username=colaborador.matricula,
-                            email=colaborador.email,
-                            first_name=nomes[0],
-                            last_name=" ".join(nomes[1:]) if len(nomes) > 1 else "",
-                        )
+                        user_data = {
+                            "username": colaborador.matricula,
+                            "first_name": nomes[0],
+                            "last_name": " ".join(nomes[1:]) if len(nomes) > 1 else "",
+                        }
+                        if settings.AD_AUTH_ENABLED:
+                            user = create_pre_authorized_ad_user(**user_data)
+                        else:
+                            user, temporary_password = create_user_with_temporary_password(
+                                **user_data,
+                            )
                     else:
-                        user.email = colaborador.email
                         user.first_name = nomes[0]
                         user.last_name = " ".join(nomes[1:]) if len(nomes) > 1 else ""
+                        user.email = ""
                         user.save(update_fields=["email", "first_name", "last_name"])
+                        if settings.AD_AUTH_ENABLED:
+                            authorize_user_for_ad(user)
 
                     colaborador.user = user
                     colaborador.data_criacao = timezone.now()
@@ -114,7 +127,8 @@ def cadastrar_colaborador(request):
                     )
                 else:
                     messages.success(
-                        request, "Colaborador vinculado ao usuário do Active Directory."
+                        request,
+                        "Usuário autorizado localmente para entrar com a conta corporativa.",
                     )
                 return redirect("estoque:cadastrar_colaborador")
 
@@ -128,19 +142,46 @@ def cadastrar_colaborador(request):
         form = ColaboradorForm()
 
     return render(
-        request, "estoque/cadastro_colaborador.html", {"colaborador_form": form}
+        request,
+        "estoque/cadastro_colaborador.html",
+        {
+            "colaborador_form": form,
+            "ad_enabled": settings.AD_AUTH_ENABLED,
+        },
     )
 
 
 @login_required
 def listar_colaboradores(request):
-    """Lista todos os colaboradores cadastrados"""
+    """Lista todas as contas autorizadas localmente, inclusive administradores."""
     if not can_manage_users(request.user):
         messages.error(request, "Somente administradores podem acessar colaboradores.")
         return redirect("estoque:dashboard")
-    colaboradores = Colaborador.objects.all()
+    users = (
+        User.objects.filter(access_control__isnull=False)
+        .select_related("access_control", "estoque_colaborador")
+        .order_by("username")
+    )
+    usuarios = []
+    for user in users:
+        try:
+            colaborador = user.estoque_colaborador
+        except Colaborador.DoesNotExist:
+            colaborador = None
+        usuarios.append(
+            {
+                "user": user,
+                "colaborador": colaborador,
+                "perfil": profile_role(user),
+                "autenticacao": (
+                    "Active Directory"
+                    if settings.AD_AUTH_ENABLED or not user.has_usable_password()
+                    else "Local"
+                ),
+            }
+        )
     return render(
-        request, "estoque/colaboradores.html", {"colaboradores": colaboradores}
+        request, "estoque/colaboradores.html", {"usuarios": usuarios}
     )
 
 
@@ -159,10 +200,11 @@ def editar_colaborador(request, pk):
             with transaction.atomic():
                 colaborador = form.save()
                 colaborador.user.username = colaborador.matricula
-                colaborador.user.email = colaborador.email
                 colaborador.user.first_name = colaborador.nome.split()[0]
                 colaborador.user.last_name = " ".join(colaborador.nome.split()[1:])
-                colaborador.user.save()
+                colaborador.user.save(
+                    update_fields=["username", "first_name", "last_name"]
+                )
                 changes = diff(before, snapshot(colaborador))
                 if changes:
                     log_action(request.user, colaborador, "update", changes)

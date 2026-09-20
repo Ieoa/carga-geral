@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from django.contrib.auth.models import User
-from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -31,18 +30,6 @@ class Colaborador(models.Model):
     nome = models.CharField(max_length=50)
     sobrenome = models.CharField(max_length=50)
     matricula = models.CharField(max_length=20, unique=True)
-    cpf = models.CharField(
-        max_length=14,
-        unique=True,
-        validators=[
-            RegexValidator(
-                regex=r"^\d{3}\.\d{3}\.\d{3}-\d{2}$",
-                message="CPF deve estar no formato: 000.000.000-00",
-            )
-        ],
-    )
-
-    email = models.EmailField(unique=True)
     cargo = models.CharField(max_length=6, choices=CARGO_CHOICES)
     data_criacao = models.DateTimeField(default=timezone.now)
 
@@ -59,10 +46,9 @@ def update_user_for_colaborador(sender, instance, **kwargs):
     # Verificar se o User já existe (não é uma nova instância)
     if instance.user_id:
         instance.user.username = instance.matricula
-        instance.user.email = instance.email
         instance.user.first_name = instance.nome
         instance.user.last_name = instance.sobrenome
-        instance.user.save()
+        instance.user.save(update_fields=["username", "first_name", "last_name"])
 
 
 class UserAccess(models.Model):

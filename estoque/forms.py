@@ -11,23 +11,13 @@ from .models import Certificacao, Colaborador, Equipamento
 class ColaboradorForm(forms.ModelForm):
     class Meta:
         model = Colaborador
-        fields = ["matricula", "nome", "email", "cpf", "area", "cargo"]
+        fields = ["matricula", "nome", "area", "cargo"]
         widgets = {
             "nome": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Digite o nome completo"}
             ),
-            "email": forms.EmailInput(
-                attrs={"class": "form-control", "placeholder": "email@exemplo.com"}
-            ),
             "matricula": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Número de matrícula"}
-            ),
-            "cpf": forms.TextInput(
-                attrs={
-                    "class": "form-control",
-                    "placeholder": "000.000.000-00",
-                    "data-mask": "000.000.000-00",
-                }
             ),
             "area": forms.Select(attrs={"class": "form-select"}),
             "cargo": forms.Select(attrs={"class": "form-select"}),
@@ -37,23 +27,10 @@ class ColaboradorForm(forms.ModelForm):
         nome = self.cleaned_data.get("nome")
         return " ".join(word.capitalize() for word in nome.split())
 
-    def clean_cpf(self):
-        cpf = self.cleaned_data.get("cpf")
-        if not re.match(r"^\d{3}\.\d{3}\.\d{3}-\d{2}$", cpf):
-            raise forms.ValidationError("Formato de CPF inválido. Use: 000.000.000-00")
-
-        cpf_numeros = cpf.replace(".", "").replace("-", "")
-        if (
-            Colaborador.objects.filter(cpf__contains=cpf_numeros)
-            .exclude(pk=self.instance.pk if self.instance else None)
-            .exists()
-        ):
-            raise forms.ValidationError("Este CPF já está cadastrado.")
-
-        return cpf
-
     def clean_matricula(self):
-        matricula = self.cleaned_data.get("matricula")
+        matricula = self.cleaned_data.get("matricula", "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", matricula):
+            raise forms.ValidationError("Use apenas letras, números, ponto, hífen ou sublinhado.")
 
         # Ignorar o user vinculado se for edição
         if self.instance and self.instance.user:

@@ -22,6 +22,12 @@ Validar se as principais funcionalidades do sistema atendem aos requisitos opera
 | T12 | Cadastrar certificacao de equipamento. | Certificacao aparece vinculada ao equipamento. |
 | T13 | Consultar estoque resumido e detalhado. | Quantidades e agrupamentos sao exibidos corretamente. |
 | T14 | Executar `HistoricoNavios.exe`. | Sistema inicia servidor local e abre no navegador. |
+| T15 | Tentar login AD com matricula ausente da lista local. | Credencial e recusada sem abrir conexao com o AD. |
+| T16 | Autorizar matricula e entrar com credencial corporativa. | Bind `glibra\\matricula` ocorre por StartTLS e o acesso e liberado. |
+| T17 | Abrir o cadastro de usuario. | Formulario nao solicita nem armazena CPF ou e-mail. |
+| T18 | Abrir a lista de usuarios como administrador. | Contas autorizadas, perfil, tipo de autenticacao e status sao exibidos. |
+| T19 | Abrir a lista como colaborador comum ou gestor. | Acesso negado e nenhuma matricula cadastrada e exibida. |
+| T20 | Inspecionar o menu como colaborador comum ou gestor. | Links de autorizacao e lista de usuarios permanecem ocultos. |
 
 ## Testes automatizados recomendados
 
@@ -29,6 +35,8 @@ Validar se as principais funcionalidades do sistema atendem aos requisitos opera
 - Testar permissao de edicao por dono do registro.
 - Testar restricao de exclusao para usuario sem perfil de gestor.
 - Testar criacao de auditoria em cadastro, alteracao e exclusao.
+- Testar que o backend local rejeita qualquer conta ausente de `UserAccess`.
+- Testar que LDAP sem StartTLS/LDAPS e recusado antes da conexao.
 
 ## Comandos de validacao
 

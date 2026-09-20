@@ -200,13 +200,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # config/settings.py
 AD_AUTH_ENABLED = config("AD_AUTH_ENABLED", default=False, cast=bool)
 AD_SERVER_URI = config("AD_SERVER_URI", default="")
+AD_DIRECT_BIND = config("AD_DIRECT_BIND", default=True, cast=bool)
+AD_DOMAIN = config("AD_DOMAIN", default="")
 AD_BIND_DN = config("AD_BIND_DN", default="")
 AD_BIND_PASSWORD = config("AD_BIND_PASSWORD", default="")
 AD_USER_SEARCH_BASE = config("AD_USER_SEARCH_BASE", default="")
 AD_USER_FILTER = config("AD_USER_FILTER", default="(sAMAccountName={username})")
 AD_START_TLS = config("AD_START_TLS", default=False, cast=bool)
-AD_CREATE_USERS = config("AD_CREATE_USERS", default=True, cast=bool)
-AD_ALWAYS_UPDATE_USER = config("AD_ALWAYS_UPDATE_USER", default=True, cast=bool)
 AD_TLS_VALIDATE = config("AD_TLS_VALIDATE", default=True, cast=bool)
 AD_CA_CERT_FILE = config("AD_CA_CERT_FILE", default="")
 AD_CONNECT_TIMEOUT = config("AD_CONNECT_TIMEOUT", default=5, cast=int)
@@ -221,9 +221,9 @@ INSIGHT_CONTAMINATION = config("INSIGHT_CONTAMINATION", default=0.10, cast=float
 LOGIN_FAILURE_LIMIT = config("LOGIN_FAILURE_LIMIT", default=5, cast=int)
 LOGIN_FAILURE_WINDOW_SECONDS = config("LOGIN_FAILURE_WINDOW_SECONDS", default=900, cast=int)
 
-AUTHENTICATION_BACKENDS = []
 if AD_AUTH_ENABLED:
-    AUTHENTICATION_BACKENDS.append('config.auth_backends.ActiveDirectoryBackend')
-AUTHENTICATION_BACKENDS.append('django.contrib.auth.backends.ModelBackend')
+    AUTHENTICATION_BACKENDS = ['config.auth_backends.ActiveDirectoryBackend']
+else:
+    AUTHENTICATION_BACKENDS = ['config.auth_backends.RegisteredUserModelBackend']
 
 LOGIN_URL = 'login'

@@ -69,7 +69,12 @@
                 <li class="menu-divider"></li>
                 <li>
                     <a href="{% url 'cadastrar_colaborador' %}">
-                        <i class="bi bi-person-plus"></i> Cadastro de Usuario
+                        <i class="bi bi-person-plus"></i> Autorizar usuário
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'estoque:listar_colaboradores' %}">
+                        <i class="bi bi-people"></i> Usuários cadastrados
                     </a>
                 </li>
                 {% endif %}

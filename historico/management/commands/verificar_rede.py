@@ -108,14 +108,21 @@ class Command(BaseCommand):
 
         if settings.AD_AUTH_ENABLED:
             ad_url = urlsplit(settings.AD_SERVER_URI)
-            if ad_url.scheme != "ldaps" and not settings.AD_START_TLS:
+            if ad_url.scheme not in {"ldap", "ldaps"} or not ad_url.hostname:
+                errors.append("AD_SERVER_URI deve ser uma URL ldap:// ou ldaps:// valida.")
+            if ad_url.scheme == "ldap" and not settings.AD_START_TLS:
                 errors.append("Active Directory deve usar LDAPS ou AD_START_TLS=True.")
-            required_ad = {
-                "AD_SERVER_URI": settings.AD_SERVER_URI,
-                "AD_BIND_DN": settings.AD_BIND_DN,
-                "AD_BIND_PASSWORD": settings.AD_BIND_PASSWORD,
-                "AD_USER_SEARCH_BASE": settings.AD_USER_SEARCH_BASE,
-            }
+            required_ad = {"AD_SERVER_URI": settings.AD_SERVER_URI}
+            if settings.AD_DIRECT_BIND:
+                required_ad["AD_DOMAIN"] = settings.AD_DOMAIN
+            else:
+                required_ad.update(
+                    {
+                        "AD_BIND_DN": settings.AD_BIND_DN,
+                        "AD_BIND_PASSWORD": settings.AD_BIND_PASSWORD,
+                        "AD_USER_SEARCH_BASE": settings.AD_USER_SEARCH_BASE,
+                    }
+                )
             missing_ad = [name for name, value in required_ad.items() if not value]
             if missing_ad:
                 errors.append("Configuracao AD incompleta: " + ", ".join(missing_ad) + ".")

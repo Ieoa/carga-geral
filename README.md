@@ -322,29 +322,36 @@ Nao use `--fake` para essas migrations. Antes de qualquer reparo em banco da emp
 
 ## Active Directory (opcional)
 
-O login do AD pode ser ativado por variaveis de ambiente. Solicite a TI da empresa: URL LDAPS,
-Base DN, DN e senha de uma conta de servico de leitura e o filtro de usuario. Exemplo:
+O login do AD pode ser ativado por variaveis de ambiente. No modo de bind direto abaixo, solicite
+a TI o endereco do dominio, o nome NetBIOS e o certificado da CA corporativa. Exemplo:
 
 ```env
 AD_AUTH_ENABLED=True
-AD_SERVER_URI=ldaps://ad.empresa.local:636
-AD_BIND_DN=CN=svc_loggeral,OU=Contas de Servico,DC=empresa,DC=local
-AD_BIND_PASSWORD=senha-da-conta-de-servico
-AD_USER_SEARCH_BASE=DC=empresa,DC=local
-AD_USER_FILTER=(sAMAccountName={username})
+AD_SERVER_URI=ldap://glibra.corp:389
+AD_DIRECT_BIND=True
+AD_DOMAIN=glibra
+AD_START_TLS=True
 AD_TLS_VALIDATE=True
 AD_CA_CERT_FILE=C:\certificados\ca-corporativa.pem
 AD_CONNECT_TIMEOUT=5
 AD_RECEIVE_TIMEOUT=10
 ```
 
-Usuarios autenticados no AD sao sincronizados com `auth_user`, mas nao recebem permissoes de
-administrador automaticamente. A conta local continua disponivel como contingencia enquanto o
-backend padrao estiver configurado.
+O administrador precisa autorizar previamente a matricula em **Usuarios cadastrados**. Se a conta
+nao existir na base local, o LOGGERAL devolve a mesma mensagem generica de credencial invalida e nao
+abre conexao com o AD. No bind direto, o identificador enviado e `glibra\\matricula`; a senha nao e
+gravada e o sistema nao consulta e-mail, CPF, departamento, cargo ou grupos do diretorio.
+Enquanto `AD_AUTH_ENABLED=True`, senhas locais nao sao aceitas como alternativa: toda conta
+autorizada deve validar a credencial no AD. Para contingencia, a TI precisa desativar conscientemente
+o AD na configuracao e reiniciar o servico.
 
-Use `ldaps://` ou habilite `AD_START_TLS=True`; nao use LDAP sem criptografia. A ativacao deve ser
-homologada pela TI com certificado, conta de servico somente-leitura, usuario comum, usuario negado
-e indisponibilidade temporaria do dominio. Nenhum teste local substitui essa homologacao no AD real.
+Antes da ativacao, garanta uma matricula corporativa administrativa com
+`python manage.py preparar_acesso_inicial --username MATRICULA_AD --skip-migrate --promote-existing`.
+
+Na porta 389, mantenha `AD_START_TLS=True`. Como alternativa, use `ldaps://glibra.corp:636` e
+`AD_START_TLS=False`. LDAP sem criptografia e recusado. A ativacao deve ser homologada pela TI com o
+certificado da CA, usuario autorizado, usuario nao cadastrado e indisponibilidade temporaria do
+dominio. Nenhum teste local substitui essa homologacao no AD real.
 
 ## LOGGERAL Insight
 

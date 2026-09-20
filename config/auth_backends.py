@@ -1,43 +1,76 @@
 import logging
 import ssl
+from contextlib import contextmanager
 from urllib.parse import urlsplit
 
 from django.conf import settings
-from django.contrib.auth.backends import BaseBackend
+from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth.models import User
-from ldap3 import ALL, SUBTREE, Connection, Server, Tls
+from ldap3 import NONE, SUBTREE, Connection, Server, Tls
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars
 
 logger = logging.getLogger(__name__)
 
 
+class RegisteredUserModelBackend(ModelBackend):
+    """Autenticação local limitada à lista explícita de contas autorizadas."""
+
+    def user_can_authenticate(self, user):
+        return super().user_can_authenticate(user) and hasattr(user, "access_control")
+
+    def get_user(self, user_id):
+        user = super().get_user(user_id)
+        return user if user is not None and self.user_can_authenticate(user) else None
+
+
 class ActiveDirectoryBackend(BaseBackend):
-    """Autentica no AD e sincroniza os dados basicos no usuario Django."""
+    """Autentica no AD somente contas previamente autorizadas no LOGGERAL."""
 
     def authenticate(self, request, username=None, password=None, **kwargs):
         if not settings.AD_AUTH_ENABLED or not username or not password:
             return None
 
-        required = {
-            "AD_SERVER_URI": settings.AD_SERVER_URI,
-            "AD_BIND_DN": settings.AD_BIND_DN,
-            "AD_BIND_PASSWORD": settings.AD_BIND_PASSWORD,
-            "AD_USER_SEARCH_BASE": settings.AD_USER_SEARCH_BASE,
-        }
+        from historico.security import find_authorized_user
+
+        user = find_authorized_user(username)
+        if user is None:
+            # Defesa em profundidade: não instancia Server nem consulta o AD.
+            return None
+
+        direct_bind = settings.AD_DIRECT_BIND
+        required = {"AD_SERVER_URI": settings.AD_SERVER_URI}
+        if direct_bind:
+            required["AD_DOMAIN"] = settings.AD_DOMAIN
+        else:
+            required.update(
+                {
+                    "AD_BIND_DN": settings.AD_BIND_DN,
+                    "AD_BIND_PASSWORD": settings.AD_BIND_PASSWORD,
+                    "AD_USER_SEARCH_BASE": settings.AD_USER_SEARCH_BASE,
+                }
+            )
         missing = [name for name, value in required.items() if not value]
         if missing:
             logger.error("Configuracao AD incompleta: %s", ", ".join(missing))
             return None
 
-        parsed = urlsplit(settings.AD_SERVER_URI)
-        use_ssl = parsed.scheme.lower() == "ldaps"
+        try:
+            parsed = urlsplit(settings.AD_SERVER_URI)
+            scheme = parsed.scheme.lower()
+            host = parsed.hostname
+            port = parsed.port or (636 if scheme == "ldaps" else 389)
+        except ValueError:
+            logger.error("Active Directory recusado: URI LDAP invalida.")
+            return None
+        if scheme not in {"ldap", "ldaps"} or not host:
+            logger.error("Active Directory recusado: URI LDAP invalida.")
+            return None
+        use_ssl = scheme == "ldaps"
         use_start_tls = settings.AD_START_TLS and not use_ssl
         if not use_ssl and not use_start_tls:
             logger.error("Active Directory recusado: use LDAPS ou STARTTLS.")
             return None
-        host = parsed.hostname or settings.AD_SERVER_URI
-        port = parsed.port or (636 if use_ssl else 389)
         tls = Tls(
             validate=ssl.CERT_REQUIRED if settings.AD_TLS_VALIDATE else ssl.CERT_NONE,
             ca_certs_file=settings.AD_CA_CERT_FILE or None,
@@ -48,67 +81,58 @@ class ActiveDirectoryBackend(BaseBackend):
             use_ssl=use_ssl,
             tls=tls,
             connect_timeout=settings.AD_CONNECT_TIMEOUT,
-            get_info=ALL,
+            get_info=NONE,
         )
 
         try:
-            with self._connection(
-                server,
-                settings.AD_BIND_DN,
-                settings.AD_BIND_PASSWORD,
-                start_tls=use_start_tls,
-            ) as service_connection:
-                ldap_filter = settings.AD_USER_FILTER.format(
-                    username=escape_filter_chars(username)
-                )
-                found = service_connection.search(
-                    settings.AD_USER_SEARCH_BASE,
-                    ldap_filter,
-                    search_scope=SUBTREE,
-                    attributes=["sAMAccountName", "givenName", "sn", "mail"],
-                    size_limit=2,
-                )
-                if not found or len(service_connection.entries) != 1:
-                    return None
-                entry = service_connection.entries[0]
-                user_dn = entry.entry_dn
-                attributes = entry.entry_attributes_as_dict
+            if direct_bind:
+                principal = f"{settings.AD_DOMAIN}\\{user.username}"
+                with self._connection(
+                    server,
+                    principal,
+                    password,
+                    start_tls=use_start_tls,
+                ):
+                    pass
+            else:
+                with self._connection(
+                    server,
+                    settings.AD_BIND_DN,
+                    settings.AD_BIND_PASSWORD,
+                    start_tls=use_start_tls,
+                ) as service_connection:
+                    ldap_filter = settings.AD_USER_FILTER.format(
+                        username=escape_filter_chars(user.username)
+                    )
+                    found = service_connection.search(
+                        settings.AD_USER_SEARCH_BASE,
+                        ldap_filter,
+                        search_scope=SUBTREE,
+                        attributes=["sAMAccountName"],
+                        size_limit=2,
+                    )
+                    if not found or len(service_connection.entries) != 1:
+                        return None
+                    entry = service_connection.entries[0]
+                    account_name = self._first(
+                        entry.entry_attributes_as_dict.get("sAMAccountName")
+                    )
+                    if account_name.casefold() != user.username.casefold():
+                        return None
+                    user_dn = entry.entry_dn
 
-            with self._connection(
-                server,
-                user_dn,
-                password,
-                start_tls=use_start_tls,
-            ):
-                pass
+                with self._connection(
+                    server,
+                    user_dn,
+                    password,
+                    start_tls=use_start_tls,
+                ):
+                    pass
 
-        except LDAPException as exc:
-            logger.warning("Falha de autenticacao no Active Directory: %s", exc)
+        except (LDAPException, OSError, KeyError, ValueError):
+            logger.warning("Falha de autenticacao no Active Directory.")
             return None
 
-        defaults = {
-            "first_name": self._first(attributes.get("givenName")),
-            "last_name": self._first(attributes.get("sn")),
-            "email": self._first(attributes.get("mail")),
-        }
-        lookup_username = self._first(attributes.get("sAMAccountName")) or username
-        user = User.objects.filter(username__iexact=lookup_username).first()
-        if user is not None and not user.is_active:
-            return None
-        if user is None and not settings.AD_CREATE_USERS:
-            return None
-        created = user is None
-        if created:
-            user = User.objects.create(username=lookup_username, is_active=True, **defaults)
-
-        if not created and settings.AD_ALWAYS_UPDATE_USER:
-            changed = []
-            for field, value in defaults.items():
-                if getattr(user, field) != value:
-                    setattr(user, field, value)
-                    changed.append(field)
-            if changed:
-                user.save(update_fields=changed)
         if user.has_usable_password():
             user.set_unusable_password()
             user.save(update_fields=["password"])
@@ -117,20 +141,21 @@ class ActiveDirectoryBackend(BaseBackend):
 
         from historico.models import UserAccess
 
-        UserAccess.objects.update_or_create(
-            user=user,
-            defaults={
-                "must_change_password": False,
-                "temporary_password_created_at": None,
-                "password_changed_at": timezone.now(),
-            },
+        UserAccess.objects.filter(user=user).update(
+            must_change_password=False,
+            temporary_password_created_at=None,
+            password_changed_at=timezone.now(),
         )
         return user
 
     def get_user(self, user_id):
-        return User.objects.filter(pk=user_id).first()
+        from historico.security import find_authorized_user
+
+        user = User.objects.filter(pk=user_id).only("username").first()
+        return find_authorized_user(user.username) if user else None
 
     @staticmethod
+    @contextmanager
     def _connection(server, username, password, *, start_tls):
         connection = Connection(
             server,
@@ -140,11 +165,16 @@ class ActiveDirectoryBackend(BaseBackend):
             raise_exceptions=True,
             receive_timeout=settings.AD_RECEIVE_TIMEOUT,
         )
-        connection.open()
-        if start_tls:
-            connection.start_tls()
-        connection.bind()
-        return connection
+        try:
+            connection.open()
+            if start_tls and not connection.start_tls():
+                raise LDAPException("StartTLS recusado pelo servidor")
+            if not connection.bind():
+                raise LDAPException("Credenciais recusadas pelo servidor")
+            yield connection
+        finally:
+            if connection.bound:
+                connection.unbind()
 
     @staticmethod
     def _first(value):

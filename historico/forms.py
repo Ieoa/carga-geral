@@ -1,11 +1,24 @@
 from django import forms
+from django.core.validators import RegexValidator
 
 from .models import Navio
 
 
 class LoginForm(forms.Form):
-    matricula = forms.CharField(label="Matrícula", max_length=20)
+    matricula = forms.CharField(
+        label="Matrícula",
+        max_length=20,
+        validators=[
+            RegexValidator(
+                regex=r"^[A-Za-z0-9._-]+$",
+                message="Informe uma matrícula válida.",
+            )
+        ],
+    )
     senha = forms.CharField(label="Senha", widget=forms.PasswordInput)
+
+    def clean_matricula(self):
+        return self.cleaned_data["matricula"].strip()
 
 
 class MultipleFileInput(forms.ClearableFileInput):

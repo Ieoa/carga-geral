@@ -150,38 +150,46 @@ Observacoes:
 
 ## Ativar Active Directory
 
-Primeiro valide uma conta administrativa local de contingencia. Depois acrescente ao `.env`:
+Primeiro valide a conta administrativa local e o backup da configuracao. Depois acrescente ao `.env`:
 
 ```env
 AD_AUTH_ENABLED=True
-AD_SERVER_URI=ldaps://ad.empresa.local:636
-AD_BIND_DN=CN=svc_loggeral,OU=Contas de Servico,DC=empresa,DC=local
-AD_BIND_PASSWORD=SENHA_DA_CONTA_DE_SERVICO
-AD_USER_SEARCH_BASE=DC=empresa,DC=local
-AD_USER_FILTER=(sAMAccountName={username})
-AD_START_TLS=False
-AD_CREATE_USERS=True
-AD_ALWAYS_UPDATE_USER=True
+AD_SERVER_URI=ldap://glibra.corp:389
+AD_DIRECT_BIND=True
+AD_DOMAIN=glibra
+AD_START_TLS=True
 AD_TLS_VALIDATE=True
 AD_CA_CERT_FILE=C:\certificados\ca-corporativa.pem
 AD_CONNECT_TIMEOUT=5
 AD_RECEIVE_TIMEOUT=10
 ```
 
-Alternativamente, use `ldap://` com `AD_START_TLS=True`. LDAP sem LDAPS ou StartTLS e recusado
-pela validacao. Mantenha `AD_TLS_VALIDATE=True` e instale a CA correta; desativar a validacao de
-certificado nao e uma solucao de producao.
+Cadastre primeiro cada matricula na lista local de usuarios autorizados. Contas ausentes nessa lista
+nao provocam nenhuma conexao ao AD. O bind direto usa `glibra\\matricula`, nao cria usuarios a partir
+do diretorio e nao coleta e-mail, CPF, departamento, cargo ou grupos.
 
-Usuarios validados pelo AD sao sincronizados na tabela local `auth_user`, mas nao recebem perfil de
-administrador automaticamente. O backend local permanece como contingencia. Homologue, no minimo:
+Antes de reiniciar com o AD ativo, promova de forma controlada ao menos uma matricula corporativa que
+administrara a lista (o comando tambem garante sua inclusao em `UserAccess`):
+
+```powershell
+python manage.py preparar_acesso_inicial --username MATRICULA_AD --skip-migrate --promote-existing
+```
+
+Na porta 389, `AD_START_TLS=True` e obrigatorio. A alternativa e `ldaps://glibra.corp:636` com
+`AD_START_TLS=False`. LDAP sem protecao e recusado. Mantenha `AD_TLS_VALIDATE=True` e instale a CA
+correta; desativar a validacao de certificado nao e uma solucao de producao.
+
+Com o AD ativo, nao existe fallback silencioso para senha local. A contingencia exige desativar o AD
+no `.env` e reiniciar o servico de forma controlada. O diretorio nao cria contas nem sincroniza
+atributos: o perfil minimo e mantido na base local. Homologue, no minimo:
 
 1. usuario AD valido;
 2. senha incorreta e usuario inexistente;
 3. usuario desativado;
-4. atributos de nome e e-mail;
+4. usuario presente no AD, mas ausente da lista local, confirmando que nenhuma conexao LDAP e aberta;
 5. indisponibilidade do controlador de dominio;
 6. validade e nome do certificado;
-7. regra de grupo/perfil definida pela empresa.
+7. perfis locais de usuario comum, gestor e administrador.
 
 ## Configurar SMTP
 

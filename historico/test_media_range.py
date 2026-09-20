@@ -4,12 +4,13 @@ from tempfile import TemporaryDirectory
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
-from historico.models import FotoVideoNavio, Navio
+from historico.models import FotoVideoNavio, Navio, UserAccess
 
 
 class ProtectedMediaRangeTests(TestCase):
     def test_authenticated_owner_can_stream_a_byte_range(self):
         owner = User.objects.create_user("range_owner", password="SenhaForte!2026")
+        UserAccess.objects.create(user=owner)
         navio = Navio.objects.create(navio="Navio Range", criado_por=owner)
         relative_path = f"navios/{navio.pk}/midias/video.mp4"
         FotoVideoNavio.objects.create(
@@ -36,6 +37,7 @@ class ProtectedMediaRangeTests(TestCase):
 
     def test_invalid_range_is_rejected_without_content(self):
         owner = User.objects.create_user("range_invalid", password="SenhaForte!2026")
+        UserAccess.objects.create(user=owner)
         navio = Navio.objects.create(navio="Navio Range Inválido", criado_por=owner)
         relative_path = f"navios/{navio.pk}/midias/video.mp4"
         FotoVideoNavio.objects.create(navio=navio, arquivo=relative_path, criado_por=owner)
