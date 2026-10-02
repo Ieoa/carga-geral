@@ -6,12 +6,12 @@ from .models import Navio
 
 class LoginForm(forms.Form):
     matricula = forms.CharField(
-        label="Matrícula",
+        label="Login",
         max_length=20,
         validators=[
             RegexValidator(
                 regex=r"^[A-Za-z0-9._-]+$",
-                message="Informe uma matrícula válida.",
+                message="Informe um login válido.",
             )
         ],
     )

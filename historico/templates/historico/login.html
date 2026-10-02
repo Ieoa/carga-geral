@@ -16,9 +16,9 @@
             {% csrf_token %}
             {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
             <div class="mb-3">
-                <label for="id_matricula" class="form-label">Matrícula</label>
+                <label for="id_matricula" class="form-label">Login</label>
                 <input type="text" name="matricula" class="form-control form-control-lg" id="id_matricula"
-                       placeholder="Digite sua matrícula" required>
+                       placeholder="Digite seu login" autocomplete="username" required>
             </div>
             <div class="mb-3">
                 <label for="id_senha" class="form-label">Senha</label>
@@ -38,7 +38,7 @@
             </div>
         {% elif form.errors %}
             <div class="alert alert-danger mt-3">
-                <strong>Erro:</strong> Matrícula ou senha incorretos.
+                <strong>Erro:</strong> Login ou senha incorretos.
             </div>
         {% endif %}
 

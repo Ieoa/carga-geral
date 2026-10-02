@@ -1,0 +1,19 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}Excluir navio{% endblock %}
+{% block module_title %}Navios{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 720px;">
+  <div class="card border-danger">
+    <div class="card-body">
+      <h1 class="h4 text-danger">Excluir navio</h1>
+      <p>Tem certeza de que deseja excluir <strong>{{ navio.navio|default:'Navio sem nome' }}</strong>?</p>
+      <p class="text-muted mb-0">As imagens, vídeos e documentos vinculados também serão removidos. Esta ação não pode ser desfeita.</p>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{% url 'pagina_pesquisa_midias' %}">Cancelar</a>
+      <form method="post">{% csrf_token %}<button class="btn btn-danger" type="submit"><i class="bi bi-trash"></i> Excluir navio</button></form>
+    </div>
+  </div>
+</div>
+{% endblock %}

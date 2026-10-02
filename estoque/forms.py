@@ -2,10 +2,12 @@ import re
 
 from django import forms
 from django.contrib.auth.models import User
+from django.db.models import Sum
 
 from historico.uploads import validate_image_upload, validate_pdf_upload
 
-from .models import Certificacao, Colaborador, Equipamento
+from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
+from .services.email_recipients import normalize_email_recipients
 
 
 class ColaboradorForm(forms.ModelForm):
@@ -94,6 +96,22 @@ class EquipamentoForm(forms.ModelForm):
         validate_image_upload(foto)
         return foto
 
+    def clean_quantidade(self):
+        quantidade = self.cleaned_data["quantidade"]
+        if self.instance and self.instance.pk:
+            emprestados = (
+                self.instance.movimentacoes.filter(data_devolucao__isnull=True).aggregate(
+                    total=Sum("quantidade")
+                )["total"]
+                or 0
+            )
+            if quantidade < emprestados:
+                raise forms.ValidationError(
+                    f"Existem {emprestados} unidade(s) emprestada(s). "
+                    "Registre as devoluções antes de reduzir a quantidade."
+                )
+        return quantidade
+
 
 class CertificacaoForm(forms.ModelForm):
     class Meta:
@@ -124,7 +142,13 @@ class CertificacaoForm(forms.ModelForm):
             "notificar_por_email": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),
-            "email_notificacao": forms.EmailInput(attrs={"class": "form-control"}),
+            "email_notificacao": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 2,
+                    "placeholder": "email1@empresa.com; email2@empresa.com",
+                }
+            ),
         }
         labels = {
             "nome_certificado": "Nome do certificado",
@@ -135,7 +159,7 @@ class CertificacaoForm(forms.ModelForm):
             "detalhes": "Detalhes",
             "anexo": "Documento PDF",
             "notificar_por_email": "Notificar por e-mail",
-            "email_notificacao": "E-mail para notificação",
+            "email_notificacao": "E-mails para notificação",
         }
 
     def clean(self):
@@ -144,7 +168,7 @@ class CertificacaoForm(forms.ModelForm):
             "email_notificacao"
         ):
             self.add_error(
-                "email_notificacao", "Informe o e-mail que receberá o aviso."
+                "email_notificacao", "Informe ao menos um e-mail que receberá o aviso."
             )
         if cleaned_data.get("notificar_por_email") and not cleaned_data.get(
             "data_vencimento"
@@ -176,3 +200,66 @@ class CertificacaoEdicaoForm(CertificacaoForm):
 
 class CertificacaoRenovacaoForm(CertificacaoForm):
     pass
+
+
+class MovimentacaoMaterialForm(forms.ModelForm):
+    class Meta:
+        model = MovimentacaoMaterial
+        fields = [
+            "equipamento",
+            "nome",
+            "matricula",
+            "quantidade",
+            "data_retirada",
+            "data_devolucao",
+        ]
+        widgets = {
+            "equipamento": forms.Select(attrs={"class": "form-select"}),
+            "nome": forms.TextInput(attrs={"class": "form-control"}),
+            "matricula": forms.TextInput(attrs={"class": "form-control"}),
+            "quantidade": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1}
+            ),
+            "data_retirada": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            ),
+            "data_devolucao": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            ),
+        }
+
+    def __init__(self, *args, equipamento=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["data_retirada"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["data_devolucao"].input_formats = ["%Y-%m-%dT%H:%M"]
+        if equipamento is not None:
+            self.fields["equipamento"].initial = equipamento
+            self.fields["equipamento"].widget = forms.HiddenInput()
+
+    def clean_nome(self):
+        return " ".join(self.cleaned_data["nome"].split())
+
+    def clean_matricula(self):
+        matricula = self.cleaned_data["matricula"].strip()
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", matricula):
+            raise forms.ValidationError(
+                "Use apenas letras, números, ponto, hífen ou sublinhado."
+            )
+        return matricula
+
+    def clean(self):
+        cleaned_data = super().clean()
+        retirada = cleaned_data.get("data_retirada")
+        devolucao = cleaned_data.get("data_devolucao")
+        if retirada and devolucao and devolucao < retirada:
+            self.add_error(
+                "data_devolucao",
+                "A devolução não pode ocorrer antes da retirada.",
+            )
+        return cleaned_data
+
+    def clean_email_notificacao(self):
+        value = self.cleaned_data.get("email_notificacao", "")
+        return normalize_email_recipients(value) if value.strip() else ""

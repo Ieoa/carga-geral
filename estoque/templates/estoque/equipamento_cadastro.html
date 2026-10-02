@@ -209,9 +209,10 @@
             </div>
           </div>
           <div class="col-12 mb-2">
-            <label class="form-label" for="cert_email_notificacao">E-mail para o aviso</label>
-            <input type="email" class="form-control" id="cert_email_notificacao"
-                   value="{{ request.user.email }}" placeholder="email@empresa.com">
+            <label class="form-label" for="cert_email_notificacao">E-mails para o aviso</label>
+            <textarea class="form-control" id="cert_email_notificacao" rows="2"
+                      placeholder="email1@empresa.com; email2@empresa.com">{{ request.user.email }}</textarea>
+            <div class="form-text">Separe os destinatários por ponto e vírgula, vírgula ou linha.</div>
           </div>
         </div>
       </div>
@@ -383,7 +384,7 @@
     }
 
     if (notificar && (!vencimento || !email)) {
-      alert("Para ativar o aviso, informe a data de vencimento e o e-mail destinatário.");
+      alert("Para ativar o aviso, informe a data de vencimento e ao menos um e-mail destinatário.");
       return;
     }
 
@@ -430,7 +431,7 @@
         notification.className = "text-success";
         const icon = document.createElement("i");
         icon.className = "bi bi-bell";
-        notification.append(icon, document.createTextNode(" Aviso por e-mail ativado"));
+        notification.append(icon, document.createTextNode(` Aviso para: ${cert.email}`));
         info.append(document.createElement("br"), notification);
       }
       

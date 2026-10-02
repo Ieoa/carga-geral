@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Navio">
+  <path d="M11 36h42l-6.5 12H18z" fill="#fff"/>
+  <path d="M20 23h26v13H20z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M26 17h13v6H26z" fill="#fff"/>
+  <path d="M25 29h4m7 0h4" fill="none" stroke="#1596a6" stroke-width="3" stroke-linecap="round"/>
+  <path d="M9 53c5 3 10 3 15 0 5 3 11 3 16 0 5 3 10 3 15 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

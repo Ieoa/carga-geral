@@ -1,98 +1,89 @@
 {% extends 'base/base_dashboard.html' %}
-{% block title %}Equipamento #{{ equipamento.registro }}{% endblock %}
+{% block title %}Material #{{ equipamento.registro }}{% endblock %}
+{% block module_title %}Materiais{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <div class="card shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-      <h5 class="mb-0"><i class="bi bi-tools me-2"></i>{{ equipamento.equipamento }}</h5>
-      <small><strong>Registro:</strong> #{{ equipamento.registro }}</small>
-    </div>
+<div class="container-fluid my-4">
+  <div class="d-md-none alert alert-info py-2"><i class="bi bi-arrow-left-right"></i> Deslize para os lados para visualizar todo o conteúdo.</div>
+  <div class="equipment-detail-scroll" tabindex="0" aria-label="Detalhes do material com rolagem horizontal">
+    <div class="equipment-detail-content">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h1 class="h5 mb-0"><i class="bi bi-tools me-2"></i>{{ equipamento.equipamento }}</h1>
+          <small><strong>Registro:</strong> #{{ equipamento.registro }}</small>
+        </div>
 
-    <div class="card-body">
-      <div class="row g-4">
-        <!-- Coluna da imagem -->
-        <div class="col-md-4 text-center">
-          {% if equipamento.foto %}
-            <img src="{{ equipamento.foto.url }}" class="img-fluid rounded border" alt="Foto do equipamento">
-          {% else %}
-            <div class="text-muted">Sem imagem</div>
+        <div class="card-body">
+          <div class="row g-4">
+            <div class="col-md-4 text-center">
+              {% if equipamento.foto %}<img src="{{ equipamento.foto.url }}" class="img-fluid rounded border" alt="Foto de {{ equipamento.equipamento }}">{% else %}<div class="text-muted">Sem imagem</div>{% endif %}
+            </div>
+            <div class="col-md-8">
+              <p><i class="bi bi-tag"></i> <strong>Identificador:</strong> {{ equipamento.identificador }}</p>
+              <p><i class="bi bi-collection"></i> <strong>Tipo:</strong> {{ equipamento.get_tipo_equipamento_display }}</p>
+              <p><i class="bi bi-123"></i> <strong>Quantidade:</strong> {{ equipamento.quantidade }}</p>
+              <p><i class="bi bi-geo-alt"></i> <strong>Localização:</strong> {{ equipamento.localizacao }}</p>
+              <p><i class="bi bi-info-circle"></i> <strong>Descrição de uso:</strong><br>{{ equipamento.descricao_uso|default:'Não informada' }}</p>
+              <p><i class="bi bi-star"></i> <strong>Características:</strong><br>{{ equipamento.caracteristica|default:'Não informadas' }}</p>
+            </div>
+          </div>
+
+          <div class="mt-4 border-top pt-3">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <h2 class="h6 mb-0"><i class="bi bi-file-earmark-pdf"></i> PDF vinculado ao QR Code</h2>
+              {% if certificacao_principal %}<a class="btn btn-sm btn-outline-danger" href="{{ certificacao_principal.anexo.url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Abrir PDF</a>{% endif %}
+            </div>
+            {% if certificacao_principal %}<iframe class="w-100 border rounded mt-3" style="height: 520px;" src="{{ certificacao_principal.anexo.url }}" title="PDF de {{ equipamento.equipamento }}"></iframe>{% else %}<p class="text-muted mt-2 mb-0">Nenhum PDF ativo foi cadastrado para este material.</p>{% endif %}
+          </div>
+
+          {% if equipamento.qrcode %}
+          <div class="mt-4 border-top pt-3">
+            <h2 class="h6"><i class="bi bi-qr-code"></i> QR Code</h2>
+            <div class="d-flex align-items-center gap-4">
+              <img src="{{ equipamento.qrcode.url }}" width="140" class="border rounded" alt="QR Code do material">
+              <button type="button" class="btn btn-outline-primary" onclick="window.open('{{ equipamento.qrcode.url }}', '_blank')"><i class="bi bi-printer"></i> Imprimir QR Code</button>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="mt-4 border-top pt-3">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+              <h2 class="h6 mb-0"><i class="bi bi-arrow-left-right"></i> Retiradas e devoluções</h2>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'estoque:listar_movimentacoes' %}?q={{ equipamento.identificador|urlencode }}">Ver lista completa</a>
+                {% if can_manage_movements %}<a class="btn btn-sm btn-primary" href="{% url 'estoque:cadastrar_movimentacao_equipamento' equipamento.pk %}"><i class="bi bi-plus-lg"></i> Registrar retirada</a>{% endif %}
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light"><tr><th>Nome</th><th>Matrícula</th><th>Qtd.</th><th>Retirada</th><th>Devolução</th><th>Editado por</th><th>Ações</th></tr></thead>
+                <tbody>
+                  {% for item in movimentacoes %}
+                  <tr><td>{{ item.nome }}</td><td>{{ item.matricula }}</td><td>{{ item.quantidade }}</td><td>{{ item.data_retirada|date:'d/m/Y H:i' }}</td><td>{% if item.data_devolucao %}{{ item.data_devolucao|date:'d/m/Y H:i' }}{% else %}<span class="badge text-bg-warning">Em aberto</span>{% endif %}</td><td>{{ item.atualizado_por.get_full_name|default:item.atualizado_por.username|default:'Não informado' }}</td><td>{% if can_manage_movements %}<a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:editar_movimentacao' item.pk %}">Editar</a>{% else %}<span class="text-muted">Consulta</span>{% endif %}</td></tr>
+                  {% empty %}<tr><td colspan="7" class="text-center text-muted">Nenhuma retirada registrada.</td></tr>{% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {% if equipamento.certificacoes.exists %}
+          <div class="mt-4 border-top pt-3">
+            <h2 class="h6"><i class="bi bi-award"></i> Certificações</h2>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover align-middle text-center">
+                <thead class="table-light"><tr><th>Nome</th><th>Empresa</th><th>Emissão</th><th>Vencimento</th><th>Código</th><th>Anexo</th></tr></thead>
+                <tbody>{% for cert in equipamento.certificacoes.all %}<tr><td>{{ cert.nome_certificado }}</td><td>{{ cert.empresa_certificadora }}</td><td>{{ cert.data_certificacao|date:'d/m/Y' }}</td><td><span class="badge text-bg-{{ cert.classe_status_vencimento }}">{{ cert.rotulo_status_vencimento }}</span>{% if cert.data_vencimento %}<small class="d-block mt-1">{{ cert.data_vencimento|date:'d/m/Y' }}</small>{% endif %}</td><td>{{ cert.codigo_certificado }}</td><td>{% if cert.anexo %}<a href="{{ cert.anexo.url }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> PDF</a>{% else %}<span class="text-muted">Sem anexo</span>{% endif %}</td></tr>{% endfor %}</tbody>
+              </table>
+            </div>
+          </div>
           {% endif %}
         </div>
 
-        <!-- Coluna das informações -->
-        <div class="col-md-8">
-          <p><i class="bi bi-tag"></i> <strong>Identificador:</strong> {{ equipamento.identificador }}</p>
-          <p><i class="bi bi-collection"></i> <strong>Tipo:</strong> {{ equipamento.get_tipo_equipamento_display }}</p>
-          <p><i class="bi bi-123"></i> <strong>Quantidade:</strong> {{ equipamento.quantidade }}</p>
-          <p><i class="bi bi-geo-alt"></i> <strong>Localização:</strong> {{ equipamento.localizacao }}</p>
-          <p><i class="bi bi-info-circle"></i> <strong>Descrição de uso:</strong><br> {{ equipamento.descricao_uso }}</p>
-          <p><i class="bi bi-star"></i> <strong>Características:</strong><br> {{ equipamento.caracteristica }}</p>
+        <div class="card-footer d-flex justify-content-between gap-2 flex-wrap">
+          <a href="{% url 'estoque:listar_equipamentos' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
+          <div class="d-flex gap-2">{% if can_edit %}<a class="btn btn-warning" href="{% url 'estoque:editar_equipamento' equipamento.pk %}"><i class="bi bi-pencil"></i> Editar</a>{% endif %}{% if can_delete %}<a class="btn btn-danger" href="{% url 'estoque:excluir_equipamento' equipamento.pk %}"><i class="bi bi-trash"></i> Excluir</a>{% endif %}</div>
         </div>
       </div>
-
-      {% if equipamento.qrcode %}
-      <div class="mt-4 border-top pt-3">
-        <h6><i class="bi bi-qr-code"></i> QR Code</h6>
-        <div class="d-flex align-items-center gap-4">
-          <img src="{{ equipamento.qrcode.url }}" width="140" class="border rounded">
-          <button class="btn btn-outline-primary" onclick="window.open('{{ equipamento.qrcode.url }}', '_blank')">
-            <i class="bi bi-printer"></i> Imprimir QR Code
-          </button>
-        </div>
-      </div>
-      {% endif %}
-
-      {% if equipamento.certificacoes.exists %}
-      <div class="mt-4 border-top pt-3">
-        <h6><i class="bi bi-award"></i> Certificações</h6>
-        <div class="table-responsive">
-          <table class="table table-bordered table-hover align-middle text-center">
-            <thead class="table-light">
-              <tr>
-                <th>Nome</th>
-                <th>Empresa</th>
-                <th>Data Certificação</th>
-                <th>Vencimento</th>
-                <th>Código</th>
-                <th>Anexo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for cert in equipamento.certificacoes.all %}
-              <tr>
-                <td>{{ cert.nome_certificado }}</td>
-                <td>{{ cert.empresa_certificadora }}</td>
-                <td>{{ cert.data_certificacao|date:'d/m/Y' }}</td>
-                <td>
-                  <span class="badge text-bg-{{ cert.classe_status_vencimento }}">{{ cert.rotulo_status_vencimento }}</span>
-                  {% if cert.data_vencimento %}
-                    <small class="d-block mt-1">{{ cert.data_vencimento|date:'d/m/Y' }}</small>
-                  {% endif %}
-                </td>
-                <td>{{ cert.codigo_certificado }}</td>
-                <td>
-                  {% if cert.anexo %}
-                    <a href="{{ cert.anexo.url }}" class="btn btn-sm btn-outline-secondary" target="_blank">
-                      <i class="bi bi-file-earmark-pdf"></i> PDF
-                    </a>
-                  {% else %}
-                    <span class="text-muted">Sem anexo</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {% endif %}
-    </div>
-
-    <div class="card-footer text-end">
-      <a href="{% url 'estoque:listar_equipamentos' %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar
-      </a>
     </div>
   </div>
 </div>

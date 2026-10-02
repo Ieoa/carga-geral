@@ -2,9 +2,10 @@ import json
 from datetime import date
 
 from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
 
 from historico.uploads import validate_pdf_upload
+
+from .email_recipients import normalize_email_recipients
 
 
 def parse_certificate_payloads(request):
@@ -39,9 +40,12 @@ def parse_certificate_payloads(request):
             if not expires_at:
                 raise ValidationError(f"Informe o vencimento para notificar o certificado {index + 1}.")
             try:
-                validate_email(email)
+                email = normalize_email_recipients(email)
             except ValidationError as exc:
-                raise ValidationError(f"O e-mail do certificado {index + 1} é inválido.") from exc
+                raise ValidationError(
+                    f"Os e-mails do certificado {index + 1} são inválidos: "
+                    + "; ".join(exc.messages)
+                ) from exc
 
         attachment = request.FILES.get(f"anexo_{index}")
         if attachment:

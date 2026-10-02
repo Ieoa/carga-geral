@@ -8,6 +8,7 @@ from django.core.exceptions import SuspiciousFileOperation
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.utils._os import safe_join
 from django.utils.http import content_disposition_header
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from estoque.models import Certificacao, Equipamento
 
@@ -16,7 +17,10 @@ from ..permissions import is_manager
 
 
 def _equipment_is_visible(user, equipment):
-    return is_manager(user) or equipment.criado_por_id == user.id
+    # Materiais e certificados são documentos operacionais compartilhados na
+    # intranet. A autenticação continua obrigatória; somente a edição permanece
+    # limitada ao autor ou à gestão.
+    return user.is_authenticated
 
 
 def _authorized_reference(user, relative_path):
@@ -38,6 +42,7 @@ def _authorized_reference(user, relative_path):
 
 
 @login_required
+@xframe_options_sameorigin
 def protected_media(request, path):
     relative_path = Path(path).as_posix().lstrip("/")
     if not relative_path or not _authorized_reference(request.user, relative_path):

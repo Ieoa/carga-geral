@@ -8,13 +8,13 @@
     <span class="form-check-label">Avisar 3 meses antes</span>
   </label>
   <div class="notification-fields">
-    <input type="email" name="email_notificacao" class="form-control form-control-sm"
-           aria-label="E-mail para aviso" placeholder="email@empresa.com"
-           value="{{ cert.email_notificacao|default:request.user.email }}">
+    <textarea name="email_notificacao" class="form-control form-control-sm" rows="2"
+              aria-label="E-mails para aviso" placeholder="email1@empresa.com; email2@empresa.com">{{ cert.email_notificacao|default:request.user.email }}</textarea>
     <button type="submit" class="btn btn-sm btn-outline-primary" title="Salvar aviso">
       <i class="bi bi-floppy"></i><span class="visually-hidden">Salvar aviso</span>
     </button>
   </div>
+  <small class="form-text">Separe os destinatários por ponto e vírgula, vírgula ou linha.</small>
   {% if cert.notificacao_enviada_em and cert.vencimento_notificado == cert.data_vencimento %}
   <small class="notification-sent"><i class="bi bi-check2-circle"></i> Enviado em {{ cert.notificacao_enviada_em|date:'d/m/Y H:i' }}</small>
   {% endif %}

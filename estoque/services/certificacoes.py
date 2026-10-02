@@ -6,6 +6,27 @@ from django.utils import timezone
 
 from estoque.models import Certificacao
 
+from .email_recipients import parse_email_recipients
+
+NON_DELIVERY_BACKENDS = {
+    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.dummy.EmailBackend',
+}
+
+
+def email_delivery_status():
+    if settings.EMAIL_BACKEND in NON_DELIVERY_BACKENDS:
+        return {
+            'enabled': False,
+            'message': 'O SMTP não está configurado. O modo atual apenas simula o envio.',
+        }
+    if settings.EMAIL_BACKEND.endswith('smtp.EmailBackend') and not settings.EMAIL_HOST:
+        return {
+            'enabled': False,
+            'message': 'O servidor SMTP não foi informado na configuração.',
+        }
+    return {'enabled': True, 'message': 'Servidor de e-mail configurado.'}
+
 
 def certificados_para_notificar(queryset=None, referencia=None):
     referencia = referencia or timezone.localdate()
@@ -34,16 +55,13 @@ def enviar_avisos_certificados(queryset=None, referencia=None):
     enviados = 0
     erros = []
 
-    non_delivery_backends = {
-        'django.core.mail.backends.console.EmailBackend',
-        'django.core.mail.backends.dummy.EmailBackend',
-    }
-    if settings.EMAIL_BACKEND in non_delivery_backends:
+    delivery_status = email_delivery_status()
+    if not delivery_status['enabled']:
         return {
             'enviados': 0,
             'erros': [{
                 'certificado': None,
-                'erro': 'O backend de e-mail atual não realiza entregas. Configure o SMTP da empresa.',
+                'erro': delivery_status['message'],
             }],
         }
 
@@ -70,16 +88,20 @@ def enviar_avisos_certificados(queryset=None, referencia=None):
             )
 
             try:
+                recipients = parse_email_recipients(certificado.email_notificacao)
+                if not recipients:
+                    raise RuntimeError('Nenhum destinatário válido foi informado.')
                 delivered = send_mail(
                     assunto,
                     mensagem,
                     settings.DEFAULT_FROM_EMAIL,
-                    [certificado.email_notificacao],
+                    recipients,
                     fail_silently=False,
                 )
                 if delivered != 1:
                     raise RuntimeError('O servidor de e-mail não confirmou a entrega da mensagem.')
-            except Exception as exc:
+            # Backends podem lançar erros de rede, autenticação, TLS e protocolo.
+            except Exception as exc:  # noqa: BLE001
                 erros.append({'certificado': certificado.pk, 'erro': str(exc)})
                 continue
 

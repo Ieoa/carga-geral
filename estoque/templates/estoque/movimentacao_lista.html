@@ -1,0 +1,80 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}Empréstimos de materiais{% endblock %}
+{% block module_title %}Empréstimos de materiais{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Empréstimos de materiais</h1>
+      <p class="text-muted mb-0">Retiradas, devoluções e responsáveis pelas alterações.</p>
+    </div>
+    {% if can_manage_movements %}
+    <a class="btn btn-primary" href="{% url 'estoque:cadastrar_movimentacao' %}"><i class="bi bi-plus-lg"></i> Nova retirada</a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-7">
+        <label class="form-label" for="mov-q">Nome, matrícula ou material</label>
+        <input class="form-control" id="mov-q" name="q" value="{{ busca }}" placeholder="Pesquisar">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="mov-status">Situação</label>
+        <select class="form-select" id="mov-status" name="status">
+          <option value="">Todas</option>
+          <option value="em_aberto" {% if status == 'em_aberto' %}selected{% endif %}>Em aberto</option>
+          <option value="devolvido" {% if status == 'devolvido' %}selected{% endif %}>Devolvidos</option>
+        </select>
+      </div>
+      <div class="col-lg-2 d-flex gap-2">
+        <button class="btn btn-primary flex-fill" type="submit">Filtrar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'estoque:listar_movimentacoes' %}" aria-label="Limpar filtros"><i class="bi bi-x-lg"></i></a>
+      </div>
+    </div>
+  </form>
+
+  <div class="table-responsive card">
+    <table class="table table-hover align-middle mb-0" style="min-width: 1050px;">
+      <thead class="table-light">
+        <tr><th>Material</th><th>Cedido para</th><th>Matrícula</th><th>Qtd.</th><th>Retirada</th><th>Devolução</th><th>Última alteração por</th><th>Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for item in movimentacoes %}
+        <tr>
+          <td><a href="{% url 'estoque:detalhe_equipamento' item.equipamento_id %}">{{ item.equipamento.equipamento }}</a><small class="d-block text-muted">{{ item.equipamento.identificador }}</small></td>
+          <td>{{ item.nome }}</td>
+          <td>{{ item.matricula }}</td>
+          <td>{{ item.quantidade }}</td>
+          <td>{{ item.data_retirada|date:'d/m/Y H:i' }}</td>
+          <td>{% if item.data_devolucao %}<span class="badge text-bg-success">{{ item.data_devolucao|date:'d/m/Y H:i' }}</span>{% else %}<span class="badge text-bg-warning">Em aberto</span>{% endif %}</td>
+          <td>{{ item.atualizado_por.get_full_name|default:item.atualizado_por.username|default:'Não informado' }}<small class="d-block text-muted">{{ item.atualizado_em|date:'d/m/Y H:i' }}</small></td>
+          <td>
+            {% if can_manage_movements %}
+            <div class="d-flex gap-1">
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:editar_movimentacao' item.pk %}">Editar</a>
+              {% if not item.data_devolucao %}
+              <form method="post" action="{% url 'estoque:devolver_movimentacao' item.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-success" type="submit">Devolver</button>
+              </form>
+              {% endif %}
+            </div>
+            {% else %}<span class="text-muted">Consulta</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted py-5">Nenhum empréstimo encontrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if movimentacoes.paginator.num_pages > 1 %}
+  <nav class="mt-3" aria-label="Paginação"><ul class="pagination justify-content-center">
+    {% if movimentacoes.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ movimentacoes.previous_page_number }}&q={{ busca|urlencode }}&status={{ status }}">Anterior</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">{{ movimentacoes.number }} de {{ movimentacoes.paginator.num_pages }}</span></li>
+    {% if movimentacoes.has_next %}<li class="page-item"><a class="page-link" href="?page={{ movimentacoes.next_page_number }}&q={{ busca|urlencode }}&status={{ status }}">Próxima</a></li>{% endif %}
+  </ul></nav>
+  {% endif %}
+</div>
+{% endblock %}

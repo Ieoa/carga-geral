@@ -1,15 +1,12 @@
 {% extends "base/base_dashboard.html" %} {% load static %} {% block content %}
 <div class="container mt-4 text-center">
-  <h2>Pesquisa de Peças (Imagens)</h2>
+  <h2>Pesquisa de Navios</h2>
   <br>
   <!-- Campo de busca -->
-  <div class="input-group mb-4">
-    <input
-      type="text"
-      id="searchInput"
-      placeholder="Digite palavra-chave (ex: tubo)"
-      class="form-control"
-    />
+  <div class="row g-2 mb-4 text-start">
+    <div class="col-lg-6"><label class="form-label" for="searchInput">Navio, peça, agência, armador ou mês</label><input type="text" id="searchInput" placeholder="Ex.: janeiro de 2026" class="form-control" /></div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label" for="dateStart">Data inicial</label><input type="date" id="dateStart" class="form-control" /></div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label" for="dateEnd">Data final</label><input type="date" id="dateEnd" class="form-control" /></div>
   </div>
 
   <!-- Resultados -->
@@ -22,12 +19,17 @@
     const searchInput = document.getElementById("searchInput");
     const resultadosDiv = document.getElementById("resultados");
     const loadMore = document.getElementById("loadMore");
+    const dateStart = document.getElementById("dateStart");
+    const dateEnd = document.getElementById("dateEnd");
     let currentQuery = "";
     let currentPage = 1;
 
     async function fetchResultados(query, page = 1, append = false) {
       try {
-        const response = await fetch(`/pesquisar_midias/?q=${encodeURIComponent(query)}&page=${page}`, {
+        const params = new URLSearchParams({ q: query, page: String(page) });
+        if (dateStart.value) params.set("data_inicio", dateStart.value);
+        if (dateEnd.value) params.set("data_fim", dateEnd.value);
+        const response = await fetch(`/pesquisar_midias/?${params.toString()}`, {
           headers: { "Accept": "application/json" }
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -59,9 +61,9 @@
       container.appendChild(line);
     }
 
-    function actionLink(label, variant, id, action) {
+    function actionLink(label, variant, url) {
       const link = textElement("a", label, `btn btn-sm btn-${variant}`);
-      link.href = `/midia/${encodeURIComponent(String(id))}/${action}/`;
+      link.href = url;
       return link;
     }
 
@@ -89,7 +91,7 @@
           if (midia.is_image) preview.alt = midia.tipo_peca || `Mídia do navio ${midia.navio || "não informado"}`;
           card.appendChild(preview);
         } else {
-          card.appendChild(textElement("div", "Arquivo não suportado", "p-3 text-center text-muted"));
+          card.appendChild(textElement("div", "Navio sem imagem de prévia", "p-5 text-center text-muted bg-light"));
         }
 
         const body = document.createElement("div");
@@ -109,9 +111,9 @@
 
         const footer = document.createElement("div");
         footer.className = "card-footer d-flex gap-2 flex-wrap";
-        footer.appendChild(actionLink("Visualizar", "info", midia.id, "visualizar"));
-        if (midia.can_edit) footer.appendChild(actionLink("Editar", "warning", midia.id, "editar"));
-        if (midia.can_delete) footer.appendChild(actionLink("Excluir", "danger", midia.id, "excluir"));
+        if (midia.view_url) footer.appendChild(actionLink("Visualizar", "info", midia.view_url));
+        if (midia.can_edit) footer.appendChild(actionLink("Editar", "warning", midia.edit_url));
+        if (midia.can_delete) footer.appendChild(actionLink("Excluir navio", "danger", midia.delete_url));
         card.appendChild(footer);
         col.appendChild(card);
         resultadosDiv.appendChild(col);
@@ -127,6 +129,10 @@
         fetchResultados(query);
       }, 300);
     });
+
+    [dateStart, dateEnd].forEach((field) => field.addEventListener("change", function () {
+      fetchResultados(searchInput.value.trim());
+    }));
 
     loadMore.addEventListener("click", function () {
       fetchResultados(currentQuery, currentPage + 1, true);

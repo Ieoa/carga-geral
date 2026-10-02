@@ -2,15 +2,13 @@
 {% load static %}
 
 {% block title %}Painel de Navios{% endblock %}
-{% block module_title %}Historico de Navios{% endblock %}
+{% block module_title %}Histórico de Navios{% endblock %}
 
 {% block content %}
 <div class="container-fluid dashboard-page">
     <div class="dashboard-heading">
-        <div>
-            <h1>Painel de Navios</h1>
-            <p>Acompanhe cadastros, midias e auditoria operacional.</p>
-        </div>
+        <h1>Painel de Navios</h1>
+        <p>Acompanhe cadastros, mídias e auditoria operacional.</p>
     </div>
 
     <div class="row g-3 mb-4">
@@ -27,7 +25,7 @@
             <div class="card metric-card text-center">
                 <div class="card-body">
                     <div class="metric-icon"><i class="bi bi-calendar3"></i></div>
-                    <h5 class="card-title">Navios (ultimos 30 dias)</h5>
+                    <h5 class="card-title">Navios (últimos 30 dias)</h5>
                     <p class="metric-value">{{ total_navios_30d }}</p>
                 </div>
             </div>
@@ -50,7 +48,7 @@
         <div class="col-lg-7">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Ultimos 5 Navios Cadastrados</h5>
+                    <h5 class="card-title">Últimos 5 Navios Cadastrados</h5>
                     <div class="table-responsive">
                         <table class="table table-striped mb-0">
                             <thead>
@@ -87,7 +85,7 @@
         <div class="col-lg-5">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Materiais por Tipo (ultimos 30 dias)</h5>
+                    <h5 class="card-title">Materiais por Tipo (últimos 30 dias)</h5>
                     <canvas id="graficoMateriais" style="max-height: 300px;"></canvas>
                 </div>
             </div>

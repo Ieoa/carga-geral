@@ -1,4 +1,5 @@
 {% extends "base/base_dashboard.html" %}
+{% load static %}
 {% block title %}Dashboard{% endblock %}
 {% block module_title %}Estoque{% endblock %}
 
@@ -79,7 +80,7 @@
       <div class="card h-100 border-0 shadow-sm hover-effect">
         <div class="card-body text-center p-4">
           <div class="icon-circle bg-primary text-white mb-3 mx-auto">
-            <i class="bi bi-ship fs-3"></i>
+            <img src="{% static 'images/ship-mark.svg' %}" class="module-ship-logo" alt="Navio">
           </div>
           <h5 class="card-title">Histórico de Navios</h5>
           <p class="card-text text-muted">Voltar para o painel de navios</p>
@@ -113,6 +114,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .module-ship-logo {
+    width: 46px;
+    height: 46px;
+    display: block;
   }
 
   .hover-effect {

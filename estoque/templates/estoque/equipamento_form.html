@@ -1,0 +1,38 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}Editar material{% endblock %}
+{% block module_title %}Materiais{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Editar material</h1>
+      <p class="text-muted mb-0">Registro #{{ equipamento.registro }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'estoque:detalhe_equipamento' equipamento.pk %}">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    {% csrf_token %}
+    <div class="card-body">
+      <div class="row g-3">
+        {% for field in form %}
+        <div class="{% if field.name == 'caracteristica' or field.name == 'descricao_uso' %}col-12{% else %}col-md-6{% endif %}">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% for error in form.non_field_errors %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endfor %}
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{% url 'estoque:detalhe_equipamento' equipamento.pk %}">Cancelar</a>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg me-1"></i>Salvar alterações</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

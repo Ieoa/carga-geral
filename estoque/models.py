@@ -7,7 +7,7 @@ import qrcode
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files import File
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -118,13 +118,16 @@ class Equipamento(models.Model):
     def get_absolute_url(self):
         return reverse("estoque:detalhe_equipamento", args=[str(self.pk)])
 
+    def get_qr_url(self):
+        return reverse("estoque:destino_qrcode", args=[str(self.pk)])
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
         if self.qrcode:
             return
 
-        detail_path = self.get_absolute_url()
+        detail_path = self.get_qr_url()
         public_base_url = getattr(settings, "PUBLIC_BASE_URL", "")
         qr_data = (
             urljoin(f"{public_base_url.rstrip('/')}/", detail_path.lstrip("/"))
@@ -165,7 +168,7 @@ class Certificacao(models.Model):
         related_name="renovacoes",
     )
     notificar_por_email = models.BooleanField(default=False)
-    email_notificacao = models.EmailField(blank=True, default="")
+    email_notificacao = models.TextField(blank=True, default="")
     notificacao_enviada_em = models.DateTimeField(null=True, blank=True)
     vencimento_notificado = models.DateField(null=True, blank=True)
     criado_por = models.ForeignKey(
@@ -235,3 +238,51 @@ class Certificacao(models.Model):
         if not self.data_vencimento:
             return None
         return (self.data_vencimento - timezone.localdate()).days
+
+
+class MovimentacaoMaterial(models.Model):
+    equipamento = models.ForeignKey(
+        Equipamento,
+        on_delete=models.PROTECT,
+        related_name="movimentacoes",
+    )
+    nome = models.CharField("Nome", max_length=150)
+    matricula = models.CharField("Matrícula", max_length=30)
+    quantidade = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+    data_retirada = models.DateTimeField("Data e hora da retirada", default=now)
+    data_devolucao = models.DateTimeField(
+        "Data e hora da devolução",
+        null=True,
+        blank=True,
+    )
+    criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimentacoes_material_criadas",
+    )
+    atualizado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimentacoes_material_atualizadas",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data_retirada", "-pk"]
+        verbose_name = "empréstimo de material"
+        verbose_name_plural = "empréstimos de materiais"
+
+    def __str__(self):
+        return f"{self.equipamento} cedido para {self.nome} ({self.matricula})"
+
+    @property
+    def devolvido(self):
+        return self.data_devolucao is not None

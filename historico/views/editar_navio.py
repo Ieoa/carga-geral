@@ -12,10 +12,18 @@ from ..uploads import collect_upload_errors
 
 @login_required
 def editar_navio(request, pk):
-    midia_or_navio = (
-        FotoVideoNavio.objects.select_related("navio").filter(pk=pk).first()
+    midia = get_object_or_404(
+        FotoVideoNavio.objects.select_related("navio"), pk=pk
     )
-    navio = midia_or_navio.navio if midia_or_navio else get_object_or_404(Navio, pk=pk)
+    return _editar_navio(request, midia.navio)
+
+
+@login_required
+def editar_navio_direto(request, pk):
+    return _editar_navio(request, get_object_or_404(Navio, pk=pk))
+
+
+def _editar_navio(request, navio):
     if not can_edit_object(request.user, navio):
         messages.error(request, "Você só pode alterar navios cadastrados por você.")
         return redirect("pagina_pesquisa_midias")

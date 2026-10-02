@@ -1,0 +1,22 @@
+{% extends 'base/base_dashboard.html' %}
+{% block title %}Excluir material{% endblock %}
+{% block module_title %}Materiais{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 720px;">
+  <div class="card border-danger">
+    <div class="card-body">
+      <h1 class="h4 text-danger">Excluir material</h1>
+      <p>Tem certeza de que deseja excluir <strong>{{ equipamento.equipamento }}</strong> ({{ equipamento.identificador }})?</p>
+      <p class="text-muted mb-0">Materiais com histórico de empréstimos não podem ser excluídos, para preservar a rastreabilidade.</p>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{% url 'estoque:detalhe_equipamento' equipamento.pk %}">Cancelar</a>
+      <form method="post">
+        {% csrf_token %}
+        <button class="btn btn-danger" type="submit"><i class="bi bi-trash"></i> Excluir</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

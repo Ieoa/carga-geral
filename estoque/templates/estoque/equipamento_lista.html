@@ -51,11 +51,11 @@
                 <span class="text-muted">Não gerado</span>
               {% endif %}
             </td>
-            <td>
-              <a href="{% url 'estoque:detalhe_equipamento' equipamento.pk %}" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-eye"></i> Visualizar
-              </a>
-            </td>
+            <td><div class="d-flex justify-content-center gap-1 flex-wrap">
+              <a href="{% url 'estoque:detalhe_equipamento' equipamento.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> Visualizar</a>
+              {% if is_manager_profile or equipamento.criado_por_id == user.id %}<a href="{% url 'estoque:editar_equipamento' equipamento.pk %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+              {% if is_manager_profile %}<a href="{% url 'estoque:excluir_equipamento' equipamento.pk %}" class="btn btn-sm btn-outline-danger" aria-label="Excluir"><i class="bi bi-trash"></i></a>{% endif %}
+            </div></td>
           </tr>
         {% empty %}
           <tr>

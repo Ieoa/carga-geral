@@ -12,9 +12,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.core.validators import validate_email
 from django.db import transaction
 from django.db.models import Max, Q, Sum
+from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,6 +22,7 @@ from django.utils import timezone
 
 from historico.audit import diff, log_action, snapshot
 from historico.permissions import (
+    can_delete_records,
     can_edit_object,
     can_manage_users,
     filter_owned_queryset,
@@ -40,13 +41,16 @@ from .forms import (
     CertificacaoRenovacaoForm,
     ColaboradorForm,
     EquipamentoForm,
+    MovimentacaoMaterialForm,
 )
-from .models import Certificacao, Colaborador, Equipamento
+from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
 from .services.certificacoes import (
     certificados_para_notificar,
+    email_delivery_status,
     enviar_avisos_certificados,
 )
 from .services.certificate_payloads import parse_certificate_payloads
+from .services.email_recipients import normalize_email_recipients
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +307,7 @@ def cadastrar_equipamento(request):
 def listar_equipamentos(request):
     """Lista equipamentos com possibilidade de busca"""
     busca = request.GET.get("q", "")
-    equipamentos = filter_owned_queryset(request.user, Equipamento.objects.all())
+    equipamentos = Equipamento.objects.all()
 
     if busca:
         equipamentos = equipamentos.filter(
@@ -321,16 +325,250 @@ def listar_equipamentos(request):
 
 @login_required
 def detalhe_equipamento(request, pk):
-
-    equipamento = get_object_or_404(
-        filter_owned_queryset(request.user, Equipamento.objects.all()), pk=pk
-    )
+    equipamento = get_object_or_404(Equipamento, pk=pk)
     today = timezone.now().date()
+    certificacao_principal = (
+        equipamento.certificacoes.filter(ativa=True)
+        .exclude(anexo="")
+        .order_by("-data_certificacao", "-pk")
+        .first()
+    )
     return render(
         request,
         "estoque/equipamento_detalhe.html",
-        {"equipamento": equipamento, "today": today},
+        {
+            "equipamento": equipamento,
+            "today": today,
+            "certificacao_principal": certificacao_principal,
+            "movimentacoes": equipamento.movimentacoes.select_related(
+                "atualizado_por"
+            )[:10],
+            "can_edit": can_edit_object(request.user, equipamento),
+            "can_delete": can_delete_records(request.user),
+            "can_manage_movements": is_manager(request.user),
+        },
     )
+
+
+@login_required
+def destino_qrcode(request, pk):
+    equipamento = get_object_or_404(Equipamento, pk=pk)
+    certificacao = (
+        equipamento.certificacoes.filter(ativa=True)
+        .exclude(anexo="")
+        .order_by("-data_certificacao", "-pk")
+        .first()
+    )
+    if certificacao:
+        return redirect(certificacao.anexo.url)
+    messages.info(request, "Este material ainda não possui PDF cadastrado.")
+    return redirect("estoque:detalhe_equipamento", pk=equipamento.pk)
+
+
+@login_required
+def editar_equipamento(request, pk):
+    equipamento = get_object_or_404(Equipamento, pk=pk)
+    if not can_edit_object(request.user, equipamento):
+        messages.error(request, "Você só pode alterar materiais cadastrados por você.")
+        return redirect("estoque:detalhe_equipamento", pk=equipamento.pk)
+
+    before = snapshot(equipamento)
+    form = EquipamentoForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=equipamento,
+    )
+    if request.method == "POST" and form.is_valid():
+        equipamento = form.save(commit=False)
+        equipamento.atualizado_por = request.user
+        equipamento.save()
+        changes = diff(before, snapshot(equipamento))
+        if changes:
+            log_action(request.user, equipamento, "update", changes)
+        messages.success(request, "Material atualizado com sucesso.")
+        return redirect("estoque:detalhe_equipamento", pk=equipamento.pk)
+
+    return render(
+        request,
+        "estoque/equipamento_form.html",
+        {"form": form, "equipamento": equipamento},
+    )
+
+
+@login_required
+def excluir_equipamento(request, pk):
+    equipamento = get_object_or_404(Equipamento, pk=pk)
+    if not can_delete_records(request.user):
+        messages.error(request, "Somente administradores e gestores podem excluir materiais.")
+        return redirect("estoque:detalhe_equipamento", pk=equipamento.pk)
+    if request.method == "POST":
+        before = snapshot(equipamento)
+        try:
+            with transaction.atomic():
+                log_action(request.user, equipamento, "delete", before)
+                equipamento.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                "O material possui empréstimos registrados e não pode ser excluído. Desative-o ou preserve o histórico.",
+            )
+            return redirect("estoque:detalhe_equipamento", pk=pk)
+        messages.success(request, "Material excluído com sucesso.")
+        return redirect("estoque:listar_equipamentos")
+    return render(
+        request,
+        "estoque/equipamento_confirmar_exclusao.html",
+        {"equipamento": equipamento},
+    )
+
+
+def _salvar_movimentacao(form, user):
+    """Salva um empréstimo sem permitir retirar mais unidades que o estoque."""
+    equipamento_id = form.cleaned_data["equipamento"].pk
+    with transaction.atomic():
+        equipamento = Equipamento.objects.select_for_update().get(pk=equipamento_id)
+        emprestados = (
+            MovimentacaoMaterial.objects.filter(
+                equipamento=equipamento,
+                data_devolucao__isnull=True,
+            )
+            .exclude(pk=form.instance.pk)
+            .aggregate(total=Sum("quantidade"))["total"]
+            or 0
+        )
+        quantidade_nova = (
+            form.cleaned_data["quantidade"]
+            if form.cleaned_data.get("data_devolucao") is None
+            else 0
+        )
+        disponiveis = max(equipamento.quantidade - emprestados, 0)
+        if quantidade_nova > disponiveis:
+            form.add_error(
+                "quantidade",
+                f"Há somente {disponiveis} unidade(s) disponível(is) para retirada.",
+            )
+            return None
+
+        movimentacao = form.save(commit=False)
+        movimentacao.equipamento = equipamento
+        if not movimentacao.pk:
+            movimentacao.criado_por = user
+        movimentacao.atualizado_por = user
+        movimentacao.save()
+        return movimentacao
+
+
+@login_required
+def listar_movimentacoes(request):
+    busca = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
+    movimentacoes = MovimentacaoMaterial.objects.select_related(
+        "equipamento", "criado_por", "atualizado_por"
+    )
+    if busca:
+        movimentacoes = movimentacoes.filter(
+            Q(nome__icontains=busca)
+            | Q(matricula__icontains=busca)
+            | Q(equipamento__equipamento__icontains=busca)
+            | Q(equipamento__identificador__icontains=busca)
+        )
+    if status == "em_aberto":
+        movimentacoes = movimentacoes.filter(data_devolucao__isnull=True)
+    elif status == "devolvido":
+        movimentacoes = movimentacoes.filter(data_devolucao__isnull=False)
+
+    return render(
+        request,
+        "estoque/movimentacao_lista.html",
+        {
+            "movimentacoes": Paginator(movimentacoes, 25).get_page(
+                request.GET.get("page")
+            ),
+            "busca": busca,
+            "status": status,
+            "can_manage_movements": is_manager(request.user),
+        },
+    )
+
+
+@login_required
+def cadastrar_movimentacao(request, equipamento_pk=None):
+    if not is_manager(request.user):
+        messages.error(
+            request, "Somente administradores e gestores podem registrar empréstimos."
+        )
+        return redirect("estoque:listar_movimentacoes")
+    equipamento = (
+        get_object_or_404(Equipamento, pk=equipamento_pk)
+        if equipamento_pk is not None
+        else None
+    )
+    form = MovimentacaoMaterialForm(
+        request.POST or None,
+        equipamento=equipamento,
+        initial={"data_retirada": timezone.localtime().strftime("%Y-%m-%dT%H:%M")},
+    )
+    if request.method == "POST" and form.is_valid():
+        movimentacao = _salvar_movimentacao(form, request.user)
+        if movimentacao:
+            log_action(request.user, movimentacao, "create", snapshot(movimentacao))
+            messages.success(request, "Retirada registrada com sucesso.")
+            return redirect(
+                "estoque:detalhe_equipamento", pk=movimentacao.equipamento_id
+            )
+    return render(
+        request,
+        "estoque/movimentacao_form.html",
+        {"form": form, "equipamento": equipamento, "modo": "cadastrar"},
+    )
+
+
+@login_required
+def editar_movimentacao(request, pk):
+    if not is_manager(request.user):
+        messages.error(
+            request, "Somente administradores e gestores podem editar empréstimos."
+        )
+        return redirect("estoque:listar_movimentacoes")
+    movimentacao = get_object_or_404(MovimentacaoMaterial, pk=pk)
+    before = snapshot(movimentacao)
+    form = MovimentacaoMaterialForm(request.POST or None, instance=movimentacao)
+    if request.method == "POST" and form.is_valid():
+        movimentacao = _salvar_movimentacao(form, request.user)
+        if movimentacao:
+            changes = diff(before, snapshot(movimentacao))
+            if changes:
+                log_action(request.user, movimentacao, "update", changes)
+            messages.success(request, "Empréstimo atualizado com sucesso.")
+            return redirect("estoque:listar_movimentacoes")
+    return render(
+        request,
+        "estoque/movimentacao_form.html",
+        {"form": form, "movimentacao": movimentacao, "modo": "editar"},
+    )
+
+
+@login_required
+def devolver_movimentacao(request, pk):
+    movimentacao = get_object_or_404(MovimentacaoMaterial, pk=pk)
+    if not is_manager(request.user):
+        messages.error(
+            request, "Somente administradores e gestores podem registrar devoluções."
+        )
+        return redirect("estoque:listar_movimentacoes")
+    if request.method == "POST" and not movimentacao.data_devolucao:
+        before = snapshot(movimentacao)
+        movimentacao.data_devolucao = timezone.now()
+        movimentacao.atualizado_por = request.user
+        movimentacao.save(update_fields=["data_devolucao", "atualizado_por", "atualizado_em"])
+        log_action(
+            request.user,
+            movimentacao,
+            "update",
+            diff(before, snapshot(movimentacao)),
+        )
+        messages.success(request, "Devolução registrada com sucesso.")
+    return redirect("estoque:listar_movimentacoes")
 
 
 @login_required
@@ -342,7 +580,7 @@ def ler_qrcode(request):
 @login_required
 def estoque_resumido(request):
     search = request.GET.get("search", "")
-    equipamentos_base = filter_owned_queryset(request.user, Equipamento.objects.all())
+    equipamentos_base = Equipamento.objects.all()
 
     agrupados = (
         equipamentos_base.filter(equipamento__icontains=search)
@@ -412,10 +650,7 @@ def estoque_resumido(request):
 
 @login_required
 def estoque_detalhado(request, nome_equipamento):
-    equipamentos = filter_owned_queryset(
-        request.user,
-        Equipamento.objects.filter(equipamento=nome_equipamento),
-    )
+    equipamentos = Equipamento.objects.filter(equipamento=nome_equipamento)
     return render(
         request,
         "estoque/estoque_detalhado.html",
@@ -453,15 +688,18 @@ def listar_certificados(request):
                 )
                 return redirect("estoque:listar_certificados")
 
-            if ativar:
+            if email:
                 try:
-                    validate_email(email)
-                except ValidationError:
+                    email = normalize_email_recipients(email)
+                except ValidationError as exc:
                     messages.error(
                         request,
-                        "Informe um endereço de e-mail válido para ativar o aviso.",
+                        "Revise os destinatários: " + "; ".join(exc.messages),
                     )
                     return redirect("estoque:listar_certificados")
+            elif ativar:
+                messages.error(request, "Informe ao menos um e-mail destinatário.")
+                return redirect("estoque:listar_certificados")
 
             before = snapshot(certificado)
             email_alterado = certificado.email_notificacao != email
@@ -493,10 +731,11 @@ def listar_certificados(request):
 
             resultado = enviar_avisos_certificados(certificados_ativos)
             if resultado["erros"]:
+                detalhe = resultado["erros"][0]["erro"]
                 messages.warning(
                     request,
                     f"{resultado['enviados']} aviso(s) enviado(s) e "
-                    f"{len(resultado['erros'])} envio(s) com erro.",
+                    f"{len(resultado['erros'])} envio(s) com erro. {detalhe}",
                 )
             else:
                 messages.success(
@@ -563,6 +802,7 @@ def listar_certificados(request):
             "status": status,
             "resumo": resumo,
             "exibir_historico": exibir_historico,
+            "email_status": email_delivery_status(),
         },
     )
 

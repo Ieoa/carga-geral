@@ -34,7 +34,7 @@ def login_view(request):
             authorized_user = find_authorized_user(matricula)
             if authorized_user is None:
                 register_login_failure(request, matricula)
-                form.add_error(None, "Matrícula ou senha inválidos.")
+                form.add_error(None, "Login ou senha inválidos.")
                 return render(
                     request,
                     "historico/login.html",
@@ -52,7 +52,7 @@ def login_view(request):
                 return redirect(next_url or "dashboard")
 
             register_login_failure(request, matricula)
-            form.add_error(None, "Matrícula ou senha inválidos.")
+            form.add_error(None, "Login ou senha inválidos.")
     else:
         form = LoginForm()
 

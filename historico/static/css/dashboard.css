@@ -31,6 +31,9 @@ body {
     transition: all 0.3s ease;
     z-index: 1000;
     box-shadow: 2px 0 12px rgba(18, 32, 48, 0.16);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .sidebar-header {
@@ -55,6 +58,32 @@ body {
 
 .sidebar-menu {
     padding: 14px 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    padding: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0.48);
+}
+
+.sidebar-backdrop.show {
+    display: block;
+}
+
+.equipment-detail-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-menu ul {
@@ -604,6 +633,10 @@ body {
 }
 
 @media (max-width: 768px) {
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
     #sidebar {
         margin-left: calc(var(--sidebar-width) * -1);
         width: var(--sidebar-width);
@@ -625,6 +658,10 @@ body {
     .main-content {
         padding: 16px;
         overflow-x: auto;
+    }
+
+    .equipment-detail-content {
+        min-width: 700px;
     }
 
     .dashboard-heading {

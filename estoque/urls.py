@@ -42,7 +42,47 @@ urlpatterns = [
         views.listar_equipamentos,
         name="listar_equipamentos",
     ),
+    path(
+        "dashboard/equipamentos/<int:pk>/editar/",
+        views.editar_equipamento,
+        name="editar_equipamento",
+    ),
+    path(
+        "dashboard/equipamentos/<int:pk>/excluir/",
+        views.excluir_equipamento,
+        name="excluir_equipamento",
+    ),
+    path(
+        "qrcode/material/<int:pk>/",
+        views.destino_qrcode,
+        name="destino_qrcode",
+    ),
     path("qrcode/ler/", views.ler_qrcode, name="ler_qrcode"),
+    path(
+        "dashboard/emprestimos/",
+        views.listar_movimentacoes,
+        name="listar_movimentacoes",
+    ),
+    path(
+        "dashboard/emprestimos/novo/",
+        views.cadastrar_movimentacao,
+        name="cadastrar_movimentacao",
+    ),
+    path(
+        "dashboard/equipamentos/<int:equipamento_pk>/emprestar/",
+        views.cadastrar_movimentacao,
+        name="cadastrar_movimentacao_equipamento",
+    ),
+    path(
+        "dashboard/emprestimos/<int:pk>/editar/",
+        views.editar_movimentacao,
+        name="editar_movimentacao",
+    ),
+    path(
+        "dashboard/emprestimos/<int:pk>/devolver/",
+        views.devolver_movimentacao,
+        name="devolver_movimentacao",
+    ),
     path(
         "dashboard/equipamentos/estoque/",
         views.estoque_resumido,

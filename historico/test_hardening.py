@@ -68,6 +68,19 @@ class CertificatePayloadValidationTests(SimpleTestCase):
         self.assertEqual(parsed[0]["anexo"].name, "certificado.pdf")
         self.assertEqual(parsed[0]["anexo"].tell(), 0)
 
+    def test_accepts_and_normalizes_multiple_notification_emails(self):
+        item = dict(
+            self.valid_item,
+            email="seguranca@empresa.com, manutencao@empresa.com\nSEGURANCA@empresa.com",
+        )
+
+        parsed = parse_certificate_payloads(self._request([item]))
+
+        self.assertEqual(
+            parsed[0]["email_notificacao"],
+            "seguranca@empresa.com; manutencao@empresa.com",
+        )
+
     def test_rejects_malformed_or_non_list_json(self):
         malformed = self.factory.post("/", {"certificados_json": "{"})
         with self.assertRaisesMessage(
@@ -106,7 +119,7 @@ class CertificatePayloadValidationTests(SimpleTestCase):
 
         invalid_email = dict(self.valid_item, email="email-invalido")
         with self.assertRaisesMessage(
-            ValidationError, "e-mail do certificado 1 é inválido"
+            ValidationError, "Os e-mails do certificado 1 são inválidos"
         ):
             parse_certificate_payloads(self._request([invalid_email]))
 
@@ -235,7 +248,7 @@ class LoginHardeningTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Matrícula ou senha inválidos")
+        self.assertContains(response, "Login ou senha inválidos")
         authenticate.assert_not_called()
 
 
@@ -254,7 +267,7 @@ class ProtectedEquipmentMediaTests(TestCase):
             ]
         )
 
-    def test_equipment_and_certificate_files_are_scoped_to_owner_and_manager(self):
+    def test_equipment_and_certificate_files_are_shared_with_authenticated_users(self):
         with (
             TemporaryDirectory() as media_root,
             override_settings(MEDIA_ROOT=media_root),
@@ -304,10 +317,13 @@ class ProtectedEquipmentMediaTests(TestCase):
             for relative in (photo_path, qr_path, certificate_path):
                 url = f"/media/{relative}"
                 self.assertEqual(anonymous_client.get(url).status_code, 302)
-                self.assertEqual(other_client.get(url).status_code, 404)
+                other_response = other_client.get(url)
+                self.assertEqual(other_response.status_code, 200)
+                streaming_responses.append(other_response)
 
                 owner_response = owner_client.get(url)
                 self.assertEqual(owner_response.status_code, 200)
+                self.assertEqual(owner_response["X-Frame-Options"], "SAMEORIGIN")
                 streaming_responses.append(owner_response)
 
                 manager_response = manager_client.get(url)

@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from historico.models import UserAccess
 
-from .models import Certificacao, Colaborador, Equipamento
+from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
 from .services.certificacoes import enviar_avisos_certificados
 
 
@@ -36,8 +36,7 @@ class EquipamentoQrCodeTests(TestCase):
             )
 
         make_qrcode.assert_called_once_with(
-            f"https://app.example.com/estoque/dashboard/equipamentos/"
-            f"detalhe_equipamento/{equipamento.pk}/"
+            f"https://app.example.com/estoque/qrcode/material/{equipamento.pk}/"
         )
 
 
@@ -83,6 +82,210 @@ class EquipmentAutocompleteTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), ["CINTA"])
+
+
+class EquipmentAndLoanPermissionTests(TestCase):
+    def setUp(self):
+        self.qr_patcher = patch("estoque.models.qrcode.make", return_value=FakeQrCode())
+        self.qr_patcher.start()
+        self.owner = User.objects.create_user("dono_material", password="senha")
+        self.other = User.objects.create_user("outro_material", password="senha")
+        self.manager = User.objects.create_user("gestor_material", password="senha")
+        for user in (self.owner, self.other, self.manager):
+            UserAccess.objects.create(user=user)
+        Colaborador.objects.create(
+            user=self.owner, matricula="dono_material", nome="Dono Material", area="MAT", cargo="AUX"
+        )
+        Colaborador.objects.create(
+            user=self.other, matricula="outro_material", nome="Outro Material", area="MAT", cargo="AUX"
+        )
+        Colaborador.objects.create(
+            user=self.manager, matricula="gestor_material", nome="Gestor Material", area="MAT", cargo="SUP"
+        )
+        self.equipamento = Equipamento.objects.create(
+            equipamento="CINTA",
+            identificador="CIN-100",
+            tipo_equipamento="MANUAL",
+            quantidade=2,
+            localizacao="ARMAZEM",
+            criado_por=self.owner,
+        )
+
+    def tearDown(self):
+        self.qr_patcher.stop()
+
+    def equipamento_payload(self, identificador="CIN-100"):
+        return {
+            "equipamento": "Cinta revisada",
+            "identificador": identificador,
+            "caracteristica": "Teste",
+            "descricao_uso": "Movimentação de carga",
+            "tipo_equipamento": "MANUAL",
+            "quantidade": 2,
+            "localizacao": "Galpão B",
+        }
+
+    def test_all_users_can_view_but_employee_only_edits_own_material(self):
+        other_client = Client()
+        other_client.force_login(self.other)
+        detail_url = reverse("estoque:detalhe_equipamento", args=[self.equipamento.pk])
+        edit_url = reverse("estoque:editar_equipamento", args=[self.equipamento.pk])
+
+        self.assertEqual(other_client.get(detail_url).status_code, 200)
+        denied = other_client.post(edit_url, self.equipamento_payload())
+        self.assertRedirects(denied, detail_url)
+
+        self.client.force_login(self.owner)
+        allowed = self.client.post(edit_url, self.equipamento_payload("CIN-101"))
+        self.assertRedirects(allowed, detail_url)
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.identificador, "CIN-101")
+        self.assertEqual(self.equipamento.atualizado_por, self.owner)
+
+    def test_manager_edits_and_deletes_any_material(self):
+        self.client.force_login(self.manager)
+        edit_url = reverse("estoque:editar_equipamento", args=[self.equipamento.pk])
+        response = self.client.post(edit_url, self.equipamento_payload("CIN-GER"))
+        self.assertRedirects(
+            response,
+            reverse("estoque:detalhe_equipamento", args=[self.equipamento.pk]),
+        )
+        delete_url = reverse("estoque:excluir_equipamento", args=[self.equipamento.pk])
+        self.assertRedirects(
+            self.client.post(delete_url), reverse("estoque:listar_equipamentos")
+        )
+        self.assertFalse(Equipamento.objects.filter(pk=self.equipamento.pk).exists())
+
+    def test_management_pages_render_without_template_errors(self):
+        movimentacao = MovimentacaoMaterial.objects.create(
+            equipamento=self.equipamento,
+            nome="Pessoa de teste",
+            matricula="MAT-RENDER",
+            quantidade=1,
+            criado_por=self.manager,
+            atualizado_por=self.manager,
+        )
+        self.client.force_login(self.manager)
+
+        urls = (
+            reverse("estoque:cadastrar_movimentacao"),
+            reverse("estoque:editar_movimentacao", args=[movimentacao.pk]),
+            reverse("estoque:excluir_equipamento", args=[self.equipamento.pk]),
+            reverse("estoque:listar_movimentacoes"),
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_cannot_reduce_stock_below_open_loans(self):
+        MovimentacaoMaterial.objects.create(
+            equipamento=self.equipamento,
+            nome="Pessoa de teste",
+            matricula="MAT-REDUZIR",
+            quantidade=2,
+            criado_por=self.manager,
+            atualizado_por=self.manager,
+        )
+        self.client.force_login(self.manager)
+        payload = self.equipamento_payload()
+        payload["quantidade"] = 1
+
+        response = self.client.post(
+            reverse("estoque:editar_equipamento", args=[self.equipamento.pk]),
+            payload,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Existem 2 unidade(s) emprestada(s)")
+        self.equipamento.refresh_from_db()
+        self.assertEqual(self.equipamento.quantidade, 2)
+
+    def test_only_management_can_create_edit_and_return_loans(self):
+        create_url = reverse(
+            "estoque:cadastrar_movimentacao_equipamento", args=[self.equipamento.pk]
+        )
+        retirada = timezone.localtime().replace(second=0, microsecond=0)
+        payload = {
+            "equipamento": self.equipamento.pk,
+            "nome": "Maria Operadora",
+            "matricula": "MAT-100",
+            "quantidade": 1,
+            "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
+            "data_devolucao": "",
+        }
+
+        self.client.force_login(self.owner)
+        self.assertRedirects(
+            self.client.post(create_url, payload), reverse("estoque:listar_movimentacoes")
+        )
+        self.assertFalse(MovimentacaoMaterial.objects.exists())
+
+        self.client.force_login(self.manager)
+        response = self.client.post(create_url, payload)
+        self.assertRedirects(
+            response,
+            reverse("estoque:detalhe_equipamento", args=[self.equipamento.pk]),
+        )
+        movimentacao = MovimentacaoMaterial.objects.get()
+        self.assertEqual(movimentacao.criado_por, self.manager)
+        self.assertEqual(movimentacao.atualizado_por, self.manager)
+
+        return_url = reverse("estoque:devolver_movimentacao", args=[movimentacao.pk])
+        self.client.post(return_url)
+        movimentacao.refresh_from_db()
+        self.assertIsNotNone(movimentacao.data_devolucao)
+        self.assertEqual(movimentacao.atualizado_por, self.manager)
+
+    def test_cannot_loan_more_than_available_stock(self):
+        MovimentacaoMaterial.objects.create(
+            equipamento=self.equipamento,
+            nome="Primeiro colaborador",
+            matricula="MAT-001",
+            quantidade=2,
+            criado_por=self.manager,
+            atualizado_por=self.manager,
+        )
+        self.client.force_login(self.manager)
+        response = self.client.post(
+            reverse(
+                "estoque:cadastrar_movimentacao_equipamento",
+                args=[self.equipamento.pk],
+            ),
+            {
+                "equipamento": self.equipamento.pk,
+                "nome": "Segundo colaborador",
+                "matricula": "MAT-002",
+                "quantidade": 1,
+                "data_retirada": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
+                "data_devolucao": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Há somente 0 unidade(s) disponível(is)")
+        self.assertEqual(MovimentacaoMaterial.objects.count(), 1)
+
+    def test_qr_destination_redirects_to_latest_active_pdf(self):
+        Certificacao.objects.create(
+            equipamento=self.equipamento,
+            nome_certificado="Manual",
+            data_certificacao=timezone.localdate(),
+            empresa_certificadora="Empresa",
+            codigo_certificado="PDF-1",
+            anexo="equipamentos/1/certificacoes/manual.pdf",
+            criado_por=self.owner,
+        )
+        self.client.force_login(self.other)
+
+        response = self.client.get(
+            reverse("estoque:destino_qrcode", args=[self.equipamento.pk])
+        )
+
+        self.assertRedirects(
+            response,
+            "/media/equipamentos/1/certificacoes/manual.pdf",
+            fetch_redirect_response=False,
+        )
 
 
 class UserAccessFlowTests(TestCase):
@@ -409,6 +612,23 @@ class CertificacaoNotificationTests(TestCase):
         self.assertEqual(resultado["enviados"], 0)
         self.assertEqual(mail.outbox, [])
 
+    def test_envia_um_unico_aviso_para_varios_destinatarios(self):
+        self.criar_certificado(
+            email_notificacao=(
+                "seguranca@empresa.com; manutencao@empresa.com, "
+                "seguranca@empresa.com"
+            )
+        )
+
+        resultado = enviar_avisos_certificados(referencia=date(2026, 7, 22))
+
+        self.assertEqual(resultado, {"enviados": 1, "erros": []})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(
+            mail.outbox[0].to,
+            ["seguranca@empresa.com", "manutencao@empresa.com"],
+        )
+
     def test_comando_de_notificacao(self):
         hoje = timezone.localdate()
         self.criar_certificado(data_vencimento=Certificacao.adicionar_meses(hoje, 1))
@@ -489,6 +709,36 @@ class CertificacaoViewTests(TestCase):
         self.certificado.refresh_from_db()
         self.assertTrue(self.certificado.notificar_por_email)
         self.assertEqual(self.certificado.email_notificacao, "avisos@empresa.com")
+
+    def test_salva_varios_destinatarios_normalizados(self):
+        response = self.client.post(
+            reverse("estoque:listar_certificados"),
+            {
+                "acao": "salvar_notificacao",
+                "certificado_id": self.certificado.pk,
+                "notificar_por_email": "on",
+                "email_notificacao": (
+                    "avisos@empresa.com, manutencao@empresa.com\n"
+                    "AVISOS@empresa.com"
+                ),
+            },
+        )
+
+        self.assertRedirects(response, reverse("estoque:listar_certificados"))
+        self.certificado.refresh_from_db()
+        self.assertEqual(
+            self.certificado.email_notificacao,
+            "avisos@empresa.com; manutencao@empresa.com",
+        )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend"
+    )
+    def test_exibe_diagnostico_quando_smtp_nao_esta_configurado(self):
+        response = self.client.get(reverse("estoque:listar_certificados"))
+
+        self.assertContains(response, "Envio de e-mail indisponível")
+        self.assertContains(response, "SMTP não está configurado")
 
     def test_rejeita_email_invalido(self):
         self.client.post(
