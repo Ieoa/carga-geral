@@ -469,11 +469,17 @@ def listar_movimentacoes(request):
         movimentacoes = movimentacoes.filter(
             Q(nome__icontains=busca)
             | Q(matricula__icontains=busca)
+            | Q(empresa_destino__icontains=busca)
             | Q(equipamento__equipamento__icontains=busca)
             | Q(equipamento__identificador__icontains=busca)
         )
     if status == "em_aberto":
         movimentacoes = movimentacoes.filter(data_devolucao__isnull=True)
+    elif status == "atrasado":
+        movimentacoes = movimentacoes.filter(
+            data_devolucao__isnull=True,
+            data_prevista_devolucao__lt=timezone.now(),
+        )
     elif status == "devolvido":
         movimentacoes = movimentacoes.filter(data_devolucao__isnull=False)
 

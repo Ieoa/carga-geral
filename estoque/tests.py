@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import StringIO
 from unittest.mock import patch
 
@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from historico.models import UserAccess
 
+from .forms import CertificacaoForm
 from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
 from .services.certificacoes import enviar_avisos_certificados
 
@@ -38,6 +39,31 @@ class EquipamentoQrCodeTests(TestCase):
         make_qrcode.assert_called_once_with(
             f"https://app.example.com/estoque/qrcode/material/{equipamento.pk}/"
         )
+
+    @override_settings(PUBLIC_BASE_URL="https://app.example.com")
+    @patch("estoque.models.qrcode.make", return_value=FakeQrCode())
+    def test_command_regenerates_legacy_qrcode_for_pdf_destination(self, make_qrcode):
+        equipamento = Equipamento.objects.create(
+            equipamento="Manilha",
+            identificador="M-001",
+            tipo_equipamento="MANUAL",
+            quantidade=1,
+            localizacao="Armazem",
+        )
+        Equipamento.objects.filter(pk=equipamento.pk).update(
+            qrcode=f"equipamentos/{equipamento.pk}/qrcodes/qrcode_{equipamento.pk}.png"
+        )
+        make_qrcode.reset_mock()
+
+        output = StringIO()
+        call_command("regenerar_qrcodes", stdout=output)
+
+        equipamento.refresh_from_db()
+        self.assertIn(f"qrcode_v2_{equipamento.pk}", equipamento.qrcode.name)
+        make_qrcode.assert_called_once_with(
+            f"https://app.example.com/estoque/qrcode/material/{equipamento.pk}/"
+        )
+        self.assertIn("1 QR Code(s) regenerado(s)", output.getvalue())
 
 
 class EquipmentAutocompleteTests(TestCase):
@@ -205,12 +231,15 @@ class EquipmentAndLoanPermissionTests(TestCase):
             "estoque:cadastrar_movimentacao_equipamento", args=[self.equipamento.pk]
         )
         retirada = timezone.localtime().replace(second=0, microsecond=0)
+        previsao = retirada + timedelta(days=7)
         payload = {
             "equipamento": self.equipamento.pk,
             "nome": "Maria Operadora",
             "matricula": "MAT-100",
+            "empresa_destino": "Empresa Parceira",
             "quantidade": 1,
             "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
+            "data_prevista_devolucao": previsao.strftime("%Y-%m-%dT%H:%M"),
             "data_devolucao": "",
         }
 
@@ -229,12 +258,48 @@ class EquipmentAndLoanPermissionTests(TestCase):
         movimentacao = MovimentacaoMaterial.objects.get()
         self.assertEqual(movimentacao.criado_por, self.manager)
         self.assertEqual(movimentacao.atualizado_por, self.manager)
+        self.assertEqual(movimentacao.empresa_destino, "Empresa Parceira")
+        self.assertEqual(
+            timezone.localtime(movimentacao.data_prevista_devolucao), previsao
+        )
+        list_response = self.client.get(reverse("estoque:listar_movimentacoes"))
+        self.assertContains(list_response, "Empresa Parceira")
+        self.assertContains(list_response, previsao.strftime("%d/%m/%Y %H:%M"))
 
         return_url = reverse("estoque:devolver_movimentacao", args=[movimentacao.pk])
         self.client.post(return_url)
         movimentacao.refresh_from_db()
         self.assertIsNotNone(movimentacao.data_devolucao)
         self.assertEqual(movimentacao.atualizado_por, self.manager)
+
+    def test_rejects_expected_return_before_withdrawal(self):
+        self.client.force_login(self.manager)
+        retirada = timezone.localtime().replace(second=0, microsecond=0)
+        response = self.client.post(
+            reverse(
+                "estoque:cadastrar_movimentacao_equipamento",
+                args=[self.equipamento.pk],
+            ),
+            {
+                "equipamento": self.equipamento.pk,
+                "nome": "Pessoa de teste",
+                "matricula": "MAT-ANTECIPADA",
+                "empresa_destino": "Empresa Parceira",
+                "quantidade": 1,
+                "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
+                "data_prevista_devolucao": (
+                    retirada - timedelta(hours=1)
+                ).strftime("%Y-%m-%dT%H:%M"),
+                "data_devolucao": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "A previsão de devolução não pode ser anterior à retirada.",
+        )
+        self.assertFalse(MovimentacaoMaterial.objects.exists())
 
     def test_cannot_loan_more_than_available_stock(self):
         MovimentacaoMaterial.objects.create(
@@ -570,6 +635,28 @@ class CertificacaoNotificationTests(TestCase):
         }
         dados.update(kwargs)
         return Certificacao.objects.create(**dados)
+
+    def test_form_normalizes_multiple_notification_emails(self):
+        form = CertificacaoForm(
+            data={
+                "nome_certificado": "Inspeção anual",
+                "data_certificacao": "2026-01-10",
+                "data_vencimento": "2026-10-22",
+                "empresa_certificadora": "Certifica Brasil",
+                "codigo_certificado": "CERT-FORM",
+                "detalhes": "",
+                "notificar_por_email": "on",
+                "email_notificacao": (
+                    "um@empresa.com, dois@empresa.com; UM@empresa.com"
+                ),
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(
+            form.cleaned_data["email_notificacao"],
+            "um@empresa.com; dois@empresa.com",
+        )
 
     def test_status_usa_tres_meses_de_calendario(self):
         certificado = self.criar_certificado(data_vencimento=date(2026, 4, 30))

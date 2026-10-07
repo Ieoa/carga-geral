@@ -17,7 +17,7 @@
   <form method="get" class="card card-body mb-3">
     <div class="row g-2 align-items-end">
       <div class="col-lg-7">
-        <label class="form-label" for="mov-q">Nome, matrícula ou material</label>
+        <label class="form-label" for="mov-q">Nome, matrícula, empresa ou material</label>
         <input class="form-control" id="mov-q" name="q" value="{{ busca }}" placeholder="Pesquisar">
       </div>
       <div class="col-lg-3">
@@ -25,6 +25,7 @@
         <select class="form-select" id="mov-status" name="status">
           <option value="">Todas</option>
           <option value="em_aberto" {% if status == 'em_aberto' %}selected{% endif %}>Em aberto</option>
+          <option value="atrasado" {% if status == 'atrasado' %}selected{% endif %}>Atrasados</option>
           <option value="devolvido" {% if status == 'devolvido' %}selected{% endif %}>Devolvidos</option>
         </select>
       </div>
@@ -36,9 +37,9 @@
   </form>
 
   <div class="table-responsive card">
-    <table class="table table-hover align-middle mb-0" style="min-width: 1050px;">
+    <table class="table table-hover align-middle mb-0" style="min-width: 1240px;">
       <thead class="table-light">
-        <tr><th>Material</th><th>Cedido para</th><th>Matrícula</th><th>Qtd.</th><th>Retirada</th><th>Devolução</th><th>Última alteração por</th><th>Ações</th></tr>
+        <tr><th>Material</th><th>Cedido para</th><th>Matrícula</th><th>Empresa/destino</th><th>Qtd.</th><th>Retirada</th><th>Previsão</th><th>Devolução</th><th>Última alteração por</th><th>Ações</th></tr>
       </thead>
       <tbody>
         {% for item in movimentacoes %}
@@ -46,8 +47,10 @@
           <td><a href="{% url 'estoque:detalhe_equipamento' item.equipamento_id %}">{{ item.equipamento.equipamento }}</a><small class="d-block text-muted">{{ item.equipamento.identificador }}</small></td>
           <td>{{ item.nome }}</td>
           <td>{{ item.matricula }}</td>
+          <td>{{ item.empresa_destino|default:'—' }}</td>
           <td>{{ item.quantidade }}</td>
           <td>{{ item.data_retirada|date:'d/m/Y H:i' }}</td>
+          <td>{% if item.data_prevista_devolucao %}<span class="badge {% if item.atrasado %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.data_prevista_devolucao|date:'d/m/Y H:i' }}</span>{% else %}<span class="text-muted">Não informada</span>{% endif %}</td>
           <td>{% if item.data_devolucao %}<span class="badge text-bg-success">{{ item.data_devolucao|date:'d/m/Y H:i' }}</span>{% else %}<span class="badge text-bg-warning">Em aberto</span>{% endif %}</td>
           <td>{{ item.atualizado_por.get_full_name|default:item.atualizado_por.username|default:'Não informado' }}<small class="d-block text-muted">{{ item.atualizado_em|date:'d/m/Y H:i' }}</small></td>
           <td>
@@ -64,7 +67,7 @@
             {% else %}<span class="text-muted">Consulta</span>{% endif %}
           </td>
         </tr>
-        {% empty %}<tr><td colspan="8" class="text-center text-muted py-5">Nenhum empréstimo encontrado.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="10" class="text-center text-muted py-5">Nenhum empréstimo encontrado.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

@@ -273,7 +273,7 @@ class ProtectedEquipmentMediaTests(TestCase):
             override_settings(MEDIA_ROOT=media_root),
         ):
             photo_path = "equipamentos/1/fotos/equipamento.png"
-            qr_path = "equipamentos/1/qrcodes/equipamento.png"
+            qr_path = "equipamentos/1/qrcodes/qrcode_v2_1.png"
             certificate_path = "equipamentos/1/certificacoes/certificado.pdf"
             for relative, content in (
                 (photo_path, b"\x89PNG\r\n\x1a\nfoto"),
@@ -285,6 +285,7 @@ class ProtectedEquipmentMediaTests(TestCase):
                 target.write_bytes(content)
 
             equipment = Equipamento.objects.create(
+                registro=1,
                 equipamento="Cinta",
                 identificador="C-001",
                 tipo_equipamento="MANUAL",

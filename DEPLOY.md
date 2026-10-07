@@ -241,11 +241,16 @@ Para executar cada validacao de forma controlada:
 ```powershell
 .\venv\Scripts\python.exe manage.py verificar_rede
 .\venv\Scripts\python.exe manage.py migrate
+.\venv\Scripts\python.exe manage.py regenerar_qrcodes
 .\venv\Scripts\python.exe manage.py verificar_banco
 .\venv\Scripts\python.exe manage.py verificar_insight
 .\venv\Scripts\python.exe manage.py collectstatic --noinput
 .\venv\Scripts\python.exe manage.py check --deploy
 ```
+
+O comando `regenerar_qrcodes` atualiza os códigos existentes para o destino que abre o PDF ativo
+mais recente do material. Depois de executá-lo, substitua as etiquetas impressas antigas pelas novas.
+O endereço gravado vem de `PUBLIC_BASE_URL` e precisa ser acessível pelo dispositivo leitor.
 
 O endpoint `GET /health/` retorna HTTP 200 quando a aplicacao alcanca o banco e HTTP 503 quando o
 banco esta indisponivel. Ele nao substitui testes funcionais e nao expoe credenciais.

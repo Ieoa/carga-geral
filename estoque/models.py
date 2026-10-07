@@ -77,6 +77,8 @@ def caminho_certificacao(instance, filename):
 
 
 class Equipamento(models.Model):
+    QR_CODE_VERSION = 2
+
     registro = models.AutoField(primary_key=True)  # número único automático
     equipamento = models.CharField(max_length=100)
     identificador = models.CharField(max_length=50)
@@ -124,7 +126,16 @@ class Equipamento(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        if self.qrcode:
+        expected_prefix = f"qrcode_v{self.QR_CODE_VERSION}_{self.registro}"
+        current_name = Path(self.qrcode.name).name if self.qrcode else ""
+        if current_name.startswith(expected_prefix):
+            return
+
+        self.gerar_qrcode(force=True, using=kwargs.get("using"))
+
+    def gerar_qrcode(self, *, force=False, using=None):
+        """Gera um QR que abre o PDF ativo mais recente deste material."""
+        if self.qrcode and not force:
             return
 
         detail_path = self.get_qr_url()
@@ -137,10 +148,10 @@ class Equipamento(models.Model):
         qr = qrcode.make(qr_data)
         buffer = BytesIO()
         qr.save(buffer, format="PNG")
-        file_name = f"qrcode_{self.registro}.png"
+        file_name = f"qrcode_v{self.QR_CODE_VERSION}_{self.registro}.png"
         self.qrcode.save(file_name, File(buffer), save=False)
 
-        super().save(update_fields=["qrcode"], using=kwargs.get("using"))
+        super().save(update_fields=["qrcode"], using=using)
 
 
 class Certificacao(models.Model):
@@ -248,11 +259,21 @@ class MovimentacaoMaterial(models.Model):
     )
     nome = models.CharField("Nome", max_length=150)
     matricula = models.CharField("Matrícula", max_length=30)
+    empresa_destino = models.CharField(
+        "Empresa ou destino",
+        max_length=150,
+        blank=True,
+    )
     quantidade = models.PositiveIntegerField(
         default=1,
         validators=[MinValueValidator(1)],
     )
     data_retirada = models.DateTimeField("Data e hora da retirada", default=now)
+    data_prevista_devolucao = models.DateTimeField(
+        "Previsão de devolução",
+        null=True,
+        blank=True,
+    )
     data_devolucao = models.DateTimeField(
         "Data e hora da devolução",
         null=True,
@@ -286,3 +307,11 @@ class MovimentacaoMaterial(models.Model):
     @property
     def devolvido(self):
         return self.data_devolucao is not None
+
+    @property
+    def atrasado(self):
+        return bool(
+            not self.data_devolucao
+            and self.data_prevista_devolucao
+            and self.data_prevista_devolucao < timezone.now()
+        )

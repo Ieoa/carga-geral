@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth.models import User
-from ldap3 import NONE, SUBTREE, Connection, Server, Tls
+from ldap3 import ALL, SUBTREE, Connection, Server, Tls
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars
 
@@ -81,7 +81,7 @@ class ActiveDirectoryBackend(BaseBackend):
             use_ssl=use_ssl,
             tls=tls,
             connect_timeout=settings.AD_CONNECT_TIMEOUT,
-            get_info=NONE,
+            get_info=ALL,
         )
 
         try:

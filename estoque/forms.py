@@ -188,6 +188,10 @@ class CertificacaoForm(forms.ModelForm):
             )
         return cleaned_data
 
+    def clean_email_notificacao(self):
+        value = self.cleaned_data.get("email_notificacao", "")
+        return normalize_email_recipients(value) if value.strip() else ""
+
     def clean_anexo(self):
         anexo = self.cleaned_data.get("anexo")
         validate_pdf_upload(anexo, limit=10 * 1024 * 1024)
@@ -209,18 +213,30 @@ class MovimentacaoMaterialForm(forms.ModelForm):
             "equipamento",
             "nome",
             "matricula",
+            "empresa_destino",
             "quantidade",
             "data_retirada",
+            "data_prevista_devolucao",
             "data_devolucao",
         ]
         widgets = {
             "equipamento": forms.Select(attrs={"class": "form-select"}),
             "nome": forms.TextInput(attrs={"class": "form-control"}),
             "matricula": forms.TextInput(attrs={"class": "form-control"}),
+            "empresa_destino": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Empresa, setor ou local de destino",
+                }
+            ),
             "quantidade": forms.NumberInput(
                 attrs={"class": "form-control", "min": 1}
             ),
             "data_retirada": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            ),
+            "data_prevista_devolucao": forms.DateTimeInput(
                 attrs={"class": "form-control", "type": "datetime-local"},
                 format="%Y-%m-%dT%H:%M",
             ),
@@ -233,6 +249,7 @@ class MovimentacaoMaterialForm(forms.ModelForm):
     def __init__(self, *args, equipamento=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["data_retirada"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["data_prevista_devolucao"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["data_devolucao"].input_formats = ["%Y-%m-%dT%H:%M"]
         if equipamento is not None:
             self.fields["equipamento"].initial = equipamento
@@ -249,17 +266,22 @@ class MovimentacaoMaterialForm(forms.ModelForm):
             )
         return matricula
 
+    def clean_empresa_destino(self):
+        return " ".join(self.cleaned_data.get("empresa_destino", "").split())
+
     def clean(self):
         cleaned_data = super().clean()
         retirada = cleaned_data.get("data_retirada")
+        prevista = cleaned_data.get("data_prevista_devolucao")
         devolucao = cleaned_data.get("data_devolucao")
+        if retirada and prevista and prevista < retirada:
+            self.add_error(
+                "data_prevista_devolucao",
+                "A previsão de devolução não pode ser anterior à retirada.",
+            )
         if retirada and devolucao and devolucao < retirada:
             self.add_error(
                 "data_devolucao",
                 "A devolução não pode ocorrer antes da retirada.",
             )
         return cleaned_data
-
-    def clean_email_notificacao(self):
-        value = self.cleaned_data.get("email_notificacao", "")
-        return normalize_email_recipients(value) if value.strip() else ""

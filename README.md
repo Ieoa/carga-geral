@@ -276,6 +276,7 @@ Antes de subir:
 
 ```bash
 python manage.py migrate
+python manage.py regenerar_qrcodes
 python manage.py collectstatic --noinput
 python manage.py check --deploy
 ```
@@ -284,7 +285,9 @@ python manage.py check --deploy
 
 Cada certificado pode ser editado ou renovado. A renovacao cria um novo registro e mantem o documento anterior disponivel no historico para rastreabilidade.
 
-Tambem e possivel definir um destinatario e ativar o aviso por e-mail. O sistema envia uma unica notificacao quando o vencimento entra na janela de tres meses e libera um novo envio se a data de vencimento for alterada.
+Tambem e possivel definir vários destinatários e ativar o aviso por e-mail. Separe os endereços por
+vírgula, ponto e vírgula ou quebra de linha. O sistema envia uma única notificação quando o
+vencimento entra na janela de três meses e libera um novo envio se a data de vencimento for alterada.
 
 Configure as variaveis `EMAIL_*` do arquivo `.env.production.example` e agende a execucao diaria:
 
