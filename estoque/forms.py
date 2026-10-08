@@ -66,6 +66,7 @@ class EquipamentoForm(forms.ModelForm):
             "equipamento",
             "identificador",
             "caracteristica",
+            "capacidade_toneladas",
             "descricao_uso",
             "tipo_equipamento",
             "quantidade",
@@ -77,6 +78,14 @@ class EquipamentoForm(forms.ModelForm):
             "identificador": forms.TextInput(attrs={"class": "form-control"}),
             "caracteristica": forms.Textarea(
                 attrs={"class": "form-control", "rows": 3}
+            ),
+            "capacidade_toneladas": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "0.01",
+                    "step": "0.01",
+                    "placeholder": "Ex.: 12,50",
+                }
             ),
             "descricao_uso": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "tipo_equipamento": forms.Select(attrs={"class": "form-select"}),

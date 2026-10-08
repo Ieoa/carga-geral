@@ -4,6 +4,7 @@ Organizado seguindo boas práticas Pythonicas com imports agrupados e comentári
 """
 
 import logging
+from decimal import Decimal, InvalidOperation
 
 # Django
 from django.conf import settings
@@ -305,21 +306,68 @@ def cadastrar_equipamento(request):
 
 @login_required
 def listar_equipamentos(request):
-    """Lista equipamentos com possibilidade de busca"""
-    busca = request.GET.get("q", "")
+    """Lista equipamentos com busca e filtro por capacidade em toneladas."""
+    busca = request.GET.get("q", "").strip()
+    capacidade_min = request.GET.get("capacidade_min", "").strip()
+    capacidade_max = request.GET.get("capacidade_max", "").strip()
     equipamentos = Equipamento.objects.all()
+    erros_filtro = []
+
+    def parse_capacidade(value, label):
+        if not value:
+            return None
+        try:
+            parsed = Decimal(value.replace(",", "."))
+            if (
+                not parsed.is_finite()
+                or parsed < 0
+                or parsed > Decimal("99999999.99")
+            ):
+                raise InvalidOperation
+            return parsed
+        except (InvalidOperation, ValueError):
+            erros_filtro.append(f"Informe uma {label} válida em toneladas.")
+            return None
+
+    capacidade_min_valor = parse_capacidade(capacidade_min, "capacidade mínima")
+    capacidade_max_valor = parse_capacidade(capacidade_max, "capacidade máxima")
 
     if busca:
         equipamentos = equipamentos.filter(
             Q(equipamento__icontains=busca)
             | Q(identificador__icontains=busca)
             | Q(registro__icontains=busca)
+            | Q(caracteristica__icontains=busca)
         )
+
+    if (
+        capacidade_min_valor is not None
+        and capacidade_max_valor is not None
+        and capacidade_min_valor > capacidade_max_valor
+    ):
+        erros_filtro.append(
+            "A capacidade mínima não pode ser maior que a capacidade máxima."
+        )
+    else:
+        if capacidade_min_valor is not None:
+            equipamentos = equipamentos.filter(
+                capacidade_toneladas__gte=capacidade_min_valor
+            )
+        if capacidade_max_valor is not None:
+            equipamentos = equipamentos.filter(
+                capacidade_toneladas__lte=capacidade_max_valor
+            )
 
     return render(
         request,
         "estoque/equipamento_lista.html",
-        {"equipamentos": equipamentos, "busca": busca},
+        {
+            "equipamentos": equipamentos,
+            "busca": busca,
+            "capacidade_min": capacidade_min,
+            "capacidade_max": capacidade_max,
+            "erros_filtro": erros_filtro,
+        },
     )
 
 

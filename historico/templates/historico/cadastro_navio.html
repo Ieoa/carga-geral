@@ -139,10 +139,10 @@
                     </div>
                 </div>
 
-                <!-- Seção 3: Documentos PDF -->
+                <!-- Seção 3: Documentos -->
                 <div class="card mb-4">
                     <div class="card-header d-flex align-items-center text-white" style="background-color: #3498db;">
-                        <i class="bi bi-file-earmark-pdf me-2"></i> Documentos (PDF)
+                        <i class="bi bi-file-earmark-text me-2"></i> Documentos (PDF, XLS ou XLSX)
                     </div>
                     <div class="card-body p-4">
                         <div id="pdf-container">
@@ -151,6 +151,7 @@
                         <button type="button" class="btn btn-outline-secondary mt-3" onclick="addPdfInput()">
                             <i class="bi bi-plus-circle me-2"></i>Adicionar Documento
                         </button>
+                        <div class="form-text">Tamanho máximo por arquivo: 20 MB.</div>
                         <div id="pdf-preview" class="mt-4"></div>
                     </div>
                 </div>
@@ -207,13 +208,13 @@
             container.insertAdjacentHTML('beforeend', template);
         };
 
-        // Função para criar um novo bloco de upload de PDF
+        // Função para criar um novo bloco de upload de documento
         window.addPdfInput = function () {
             const container = document.getElementById("pdf-container");
             const index = container.children.length;
             const template = `
             <div class="input-group mb-3">
-                <input type="file" name="arquivos" id="id_pdf_${index}" accept="application/pdf" class="form-control">
+                <input type="file" name="arquivos" id="id_pdf_${index}" accept="application/pdf,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control">
                 <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="bi bi-trash"></i></button>
             </div>
         `;
@@ -244,7 +245,7 @@
             }
         };
 
-        // Adiciona o primeiro campo de mídia e PDF ao carregar a página
+        // Adiciona o primeiro campo de mídia e documento ao carregar a página
         addMediaInput();
         addPdfInput();
 

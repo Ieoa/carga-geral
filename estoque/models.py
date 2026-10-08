@@ -1,4 +1,5 @@
 import calendar
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urljoin
@@ -83,6 +84,14 @@ class Equipamento(models.Model):
     equipamento = models.CharField(max_length=100)
     identificador = models.CharField(max_length=50)
     caracteristica = models.TextField(blank=True, null=True)
+    capacidade_toneladas = models.DecimalField(
+        "Capacidade em toneladas",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
     descricao_uso = models.TextField(blank=True, null=True)
 
     TIPO_CHOICES = [

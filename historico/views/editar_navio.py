@@ -34,13 +34,13 @@ def _editar_navio(request, navio):
     if request.method == "POST":
         before = snapshot(navio)
         navio_form = NavioForm(request.POST, instance=navio)
-        arquivos_pdf = request.FILES.getlist("arquivos")
+        arquivos_documento = request.FILES.getlist("arquivos")
         midias_files = request.FILES.getlist("midias")
         observacoes = request.POST.getlist("observacoes")
         tipo_pecas = request.POST.getlist("tipo_peca")
 
         upload_errors = collect_upload_errors(
-            documents=arquivos_pdf, media=midias_files
+            documents=arquivos_documento, media=midias_files
         )
         if navio_form.is_valid() and not upload_errors:
             with transaction.atomic():
@@ -52,7 +52,7 @@ def _editar_navio(request, navio):
                 if changes:
                     log_action(request.user, navio, "update", changes)
 
-                for arquivo in arquivos_pdf:
+                for arquivo in arquivos_documento:
                     documento = DocumentoNavio.objects.create(
                         navio=navio,
                         arquivo=arquivo,

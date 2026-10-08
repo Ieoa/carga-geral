@@ -1,6 +1,7 @@
 """Validação centralizada dos arquivos enviados ao LOGGERAL."""
 
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from django.core.exceptions import ValidationError
 
@@ -20,6 +21,26 @@ def _header(upload, size=32):
 
 def _is_pdf(header):
     return header.startswith(b"%PDF-")
+
+
+def _is_xls(header):
+    return header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+
+
+def _is_xlsx(upload):
+    position = upload.tell() if hasattr(upload, "tell") else 0
+    try:
+        with ZipFile(upload) as workbook:
+            members = set(workbook.namelist())
+            return {
+                "[Content_Types].xml",
+                "xl/workbook.xml",
+            }.issubset(members)
+    except (BadZipFile, OSError, ValueError):
+        return False
+    finally:
+        if hasattr(upload, "seek"):
+            upload.seek(position)
 
 
 def _is_image(header, extension):
@@ -57,6 +78,32 @@ def validate_pdf_upload(upload, *, limit=DOCUMENT_LIMIT):
         raise ValidationError(f"O documento deve ter no máximo {limit // MIB} MB.")
 
 
+def validate_navio_document_upload(upload, *, limit=DOCUMENT_LIMIT):
+    """Aceita documentos PDF e planilhas Excel legítimas no cadastro de navios."""
+    if upload is None:
+        return
+    extension = Path(upload.name).suffix.lower()
+    if extension not in {".pdf", ".xls", ".xlsx"}:
+        display_extension = extension.lstrip(".") or "sem extensão"
+        raise ValidationError(
+            f"A extensão de arquivo “{display_extension}” não é permitida. "
+            "Use PDF, XLS ou XLSX."
+        )
+    if getattr(upload, "size", 0) > limit:
+        raise ValidationError(f"O documento deve ter no máximo {limit // MIB} MB.")
+
+    header = _header(upload)
+    is_valid = {
+        ".pdf": lambda: _is_pdf(header),
+        ".xls": lambda: _is_xls(header),
+        ".xlsx": lambda: _is_xlsx(upload),
+    }[extension]()
+    if not is_valid:
+        raise ValidationError(
+            "O conteúdo do documento não corresponde a um arquivo PDF, XLS ou XLSX válido."
+        )
+
+
 def validate_media_upload(upload):
     extension = Path(upload.name).suffix.lower()
     header = _header(upload)
@@ -88,7 +135,7 @@ def collect_upload_errors(*, documents=(), media=()):
     errors = []
     for upload in documents:
         try:
-            validate_pdf_upload(upload)
+            validate_navio_document_upload(upload)
         except ValidationError as exc:
             errors.extend(exc.messages)
     for upload in media:

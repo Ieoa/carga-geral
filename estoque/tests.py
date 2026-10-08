@@ -131,6 +131,8 @@ class EquipmentAndLoanPermissionTests(TestCase):
         self.equipamento = Equipamento.objects.create(
             equipamento="CINTA",
             identificador="CIN-100",
+            caracteristica="Poliéster reforçado",
+            capacidade_toneladas="5.00",
             tipo_equipamento="MANUAL",
             quantidade=2,
             localizacao="ARMAZEM",
@@ -145,6 +147,7 @@ class EquipmentAndLoanPermissionTests(TestCase):
             "equipamento": "Cinta revisada",
             "identificador": identificador,
             "caracteristica": "Teste",
+            "capacidade_toneladas": "5.00",
             "descricao_uso": "Movimentação de carga",
             "tipo_equipamento": "MANUAL",
             "quantidade": 2,
@@ -225,6 +228,53 @@ class EquipmentAndLoanPermissionTests(TestCase):
         self.assertContains(response, "Existem 2 unidade(s) emprestada(s)")
         self.equipamento.refresh_from_db()
         self.assertEqual(self.equipamento.quantidade, 2)
+
+    def test_filters_equipment_list_by_tonnage_capacity(self):
+        Equipamento.objects.create(
+            equipamento="MANILHA",
+            identificador="MAN-015",
+            caracteristica="Aço galvanizado",
+            capacidade_toneladas="15.00",
+            tipo_equipamento="MANUAL",
+            quantidade=1,
+            localizacao="ARMAZEM",
+            criado_por=self.owner,
+        )
+        Equipamento.objects.create(
+            equipamento="GANCHO",
+            identificador="GAN-025",
+            caracteristica="Gancho de alta resistência",
+            capacidade_toneladas="25.00",
+            tipo_equipamento="MANUAL",
+            quantidade=1,
+            localizacao="ARMAZEM",
+            criado_por=self.owner,
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("estoque:listar_equipamentos"),
+            {"capacidade_min": "10,5", "capacidade_max": "20"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "MAN-015")
+        self.assertNotContains(response, "CIN-100")
+        self.assertNotContains(response, "GAN-025")
+        self.assertContains(response, "15,00 t")
+
+    def test_rejects_invalid_capacity_filter_without_server_error(self):
+        self.client.force_login(self.owner)
+
+        for invalid_value in ("vinte", "NaN", "Infinity", "-1", "100000000"):
+            with self.subTest(invalid_value=invalid_value):
+                response = self.client.get(
+                    reverse("estoque:listar_equipamentos"),
+                    {"capacidade_min": invalid_value, "capacidade_max": "10"},
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Informe uma capacidade mínima válida")
 
     def test_only_management_can_create_edit_and_return_loans(self):
         create_url = reverse(

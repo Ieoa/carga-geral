@@ -35,9 +35,17 @@ class MultipleFileField(forms.FileField):
 
 class DocumentoNavioForm(forms.Form):
     arquivos = MultipleFileField(
-        widget=MultipleFileInput(attrs={"multiple": True, "accept": "application/pdf"}),
+        widget=MultipleFileInput(
+            attrs={
+                "multiple": True,
+                "accept": (
+                    "application/pdf,.xls,.xlsx,application/vnd.ms-excel,"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ),
+            }
+        ),
         required=False,
-        label="Selecionar PDFs",
+        label="Selecionar PDFs ou planilhas Excel",
     )
 
 

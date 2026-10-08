@@ -44,15 +44,16 @@
 
                     <!-- Documentos -->
                     <div class="tab-pane fade" id="docs" role="tabpanel">
-                        <h5 class="fw-bold">Adicionar PDFs</h5>
+                        <h5 class="fw-bold">Adicionar documentos PDF ou Excel</h5>
                         <div id="pdfContainer">
                             <div class="input-group mb-2">
-                                <input type="file" name="arquivos" accept="application/pdf" class="form-control">
+                                <input type="file" name="arquivos" accept="application/pdf,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control">
                                 <button type="button" class="btn btn-outline-primary add-pdf">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
                         </div>
+                        <div class="form-text">Formatos permitidos: PDF, XLS e XLSX. Máximo de 20 MB por arquivo.</div>
 
                         {% if documentos %}
                             <hr>
@@ -60,11 +61,11 @@
                             <ul class="list-group">
                                 {% for doc in documentos %}
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
+                                        <i class="bi bi-file-earmark-text text-secondary me-2"></i>
                                         <a href="{{ doc.arquivo.url }}" target="_blank">
     {{ doc.arquivo.name|cut:"documentos/" }}
 </a>
-                                        <span class="badge bg-secondary">PDF</span>
+                                        <span class="badge bg-secondary">Documento</span>
                                     </li>
                                 {% endfor %}
                             </ul>
@@ -123,14 +124,14 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // Adicionar mais PDFs
+    // Adicionar mais documentos
     document.querySelector("#pdfContainer").addEventListener("click", (e) => {
         if (e.target.closest(".add-pdf")) {
             const container = document.querySelector("#pdfContainer");
             const inputGroup = document.createElement("div");
             inputGroup.className = "input-group mb-2";
             inputGroup.innerHTML = `
-                <input type="file" name="arquivos" accept="application/pdf" class="form-control">
+                <input type="file" name="arquivos" accept="application/pdf,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control">
                 <button type="button" class="btn btn-outline-danger remove-pdf">
                     <i class="bi bi-dash-circle"></i>
                 </button>`;
@@ -138,7 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Remover PDFs extras
+    // Remover documentos extras
     document.querySelector("#pdfContainer").addEventListener("click", (e) => {
         if (e.target.closest(".remove-pdf")) {
             e.target.closest(".input-group").remove();

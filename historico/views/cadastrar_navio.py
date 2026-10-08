@@ -17,11 +17,13 @@ def cadastrar_navio(request):
         documento_form = DocumentoNavioForm(request.POST, request.FILES)
 
         midias_files = request.FILES.getlist("midias")
-        arquivos_pdf = request.FILES.getlist("arquivos")
+        arquivos_documento = request.FILES.getlist("arquivos")
         observacoes = request.POST.getlist("observacoes")
         tipos_pecas = request.POST.getlist("tipo_peca")
 
-        upload_errors = collect_upload_errors(documents=arquivos_pdf, media=midias_files)
+        upload_errors = collect_upload_errors(
+            documents=arquivos_documento, media=midias_files
+        )
         if navio_form.is_valid() and not upload_errors:
             with transaction.atomic():
                 navio = navio_form.save(commit=False)
@@ -30,7 +32,7 @@ def cadastrar_navio(request):
                 navio.save()
                 log_action(request.user, navio, "create", snapshot(navio))
 
-                for arquivo in arquivos_pdf:
+                for arquivo in arquivos_documento:
                     documento = DocumentoNavio.objects.create(
                         navio=navio,
                         arquivo=arquivo,

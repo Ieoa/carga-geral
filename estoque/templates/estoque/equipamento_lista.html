@@ -5,11 +5,26 @@
 <div class="container my-4">
   <h4 class="mb-3">Equipamentos Cadastrados</h4>
 
-  <form method="get" class="row g-3 mb-4">
-    <div class="col-md-4">
-      <input type="text" name="q" value="{{ busca }}" class="form-control" placeholder="Buscar por equipamento, identificador ou registro">
+  {% if erros_filtro %}
+    <div class="alert alert-warning" role="alert">
+      {% for erro in erros_filtro %}<div>{{ erro }}</div>{% endfor %}
     </div>
-    <div class="col-auto">
+  {% endif %}
+
+  <form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-lg-5">
+      <label class="form-label" for="equipamento-q">Equipamento ou característica</label>
+      <input id="equipamento-q" type="text" name="q" value="{{ busca }}" class="form-control" placeholder="Nome, identificador, registro ou característica">
+    </div>
+    <div class="col-sm-6 col-lg-2">
+      <label class="form-label" for="capacidade-min">Capacidade mínima (t)</label>
+      <input id="capacidade-min" type="text" inputmode="decimal" name="capacidade_min" value="{{ capacidade_min }}" class="form-control" placeholder="Ex.: 5">
+    </div>
+    <div class="col-sm-6 col-lg-2">
+      <label class="form-label" for="capacidade-max">Capacidade máxima (t)</label>
+      <input id="capacidade-max" type="text" inputmode="decimal" name="capacidade_max" value="{{ capacidade_max }}" class="form-control" placeholder="Ex.: 20">
+    </div>
+    <div class="col-lg-3">
       <button class="btn btn-primary" type="submit">Buscar</button>
       <a href="{% url 'estoque:listar_equipamentos' %}" class="btn btn-outline-secondary">Limpar</a>
     </div>
@@ -22,6 +37,8 @@
           <th>Imagem</th>
           <th>Equipamento</th>
           <th>Identificador</th>
+          <th>Características</th>
+          <th>Capacidade</th>
           <th>Registro</th>
           <th>Quantidade</th>
           <th>Localização</th>
@@ -41,6 +58,8 @@
             </td>
             <td>{{ equipamento.equipamento }}</td>
             <td>{{ equipamento.identificador }}</td>
+            <td>{{ equipamento.caracteristica|default:'Não informada' }}</td>
+            <td>{% if equipamento.capacidade_toneladas %}{{ equipamento.capacidade_toneladas|floatformat:2 }} t{% else %}<span class="text-muted">Não informada</span>{% endif %}</td>
             <td>{{ equipamento.registro }}</td>
             <td>{{ equipamento.quantidade }}</td>
             <td>{{ equipamento.localizacao }}</td>
@@ -59,7 +78,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="8" class="text-center text-muted">Nenhum equipamento encontrado.</td>
+            <td colspan="10" class="text-center text-muted">Nenhum equipamento encontrado.</td>
           </tr>
         {% endfor %}
       </tbody>
