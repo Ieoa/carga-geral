@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth.models import User
-from ldap3 import ALL, SUBTREE, Connection, Server, Tls
+from ldap3 import NONE, SUBTREE, Connection, Server, Tls, ALL
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars
 
@@ -68,19 +68,16 @@ class ActiveDirectoryBackend(BaseBackend):
             return None
         use_ssl = scheme == "ldaps"
         use_start_tls = settings.AD_START_TLS and not use_ssl
-        if not use_ssl and not use_start_tls:
-            logger.error("Active Directory recusado: use LDAPS ou STARTTLS.")
-            return None
-        tls = Tls(
-            validate=ssl.CERT_REQUIRED if settings.AD_TLS_VALIDATE else ssl.CERT_NONE,
-            ca_certs_file=settings.AD_CA_CERT_FILE or None,
-        )
+        # if not use_ssl and not use_start_tls:
+        #     logger.error("Active Directory recusado: use LDAPS ou STARTTLS.")
+        #     return None
+        # tls = Tls(
+        #     validate=ssl.CERT_REQUIRED if settings.AD_TLS_VALIDATE else ssl.CERT_NONE,
+        #     ca_certs_file=settings.AD_CA_CERT_FILE or None,
+        # )
         server = Server(
             host,
             port=port,
-            use_ssl=use_ssl,
-            tls=tls,
-            connect_timeout=settings.AD_CONNECT_TIMEOUT,
             get_info=ALL,
         )
 
