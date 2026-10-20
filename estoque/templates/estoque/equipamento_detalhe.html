@@ -51,7 +51,7 @@
               <h2 class="h6 mb-0"><i class="bi bi-arrow-left-right"></i> Retiradas e devoluções</h2>
               <div class="d-flex gap-2">
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'estoque:listar_movimentacoes' %}?q={{ equipamento.identificador|urlencode }}">Ver lista completa</a>
-                {% if can_manage_movements %}<a class="btn btn-sm btn-primary" href="{% url 'estoque:cadastrar_movimentacao_equipamento' equipamento.pk %}"><i class="bi bi-plus-lg"></i> Registrar retirada</a>{% endif %}
+                <a class="btn btn-sm btn-primary" href="{% url 'estoque:cadastrar_movimentacao_equipamento' equipamento.pk %}"><i class="bi bi-plus-lg"></i> Registrar retirada</a>
               </div>
             </div>
             <div class="table-responsive">
@@ -59,7 +59,7 @@
                 <thead class="table-light"><tr><th>Nome</th><th>Matrícula</th><th>Empresa/destino</th><th>Qtd.</th><th>Retirada</th><th>Previsão</th><th>Devolução</th><th>Editado por</th><th>Ações</th></tr></thead>
                 <tbody>
                   {% for item in movimentacoes %}
-                  <tr><td>{{ item.nome }}</td><td>{{ item.matricula }}</td><td>{{ item.empresa_destino|default:'—' }}</td><td>{{ item.quantidade }}</td><td>{{ item.data_retirada|date:'d/m/Y H:i' }}</td><td>{% if item.data_prevista_devolucao %}<span class="badge {% if item.atrasado %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.data_prevista_devolucao|date:'d/m/Y H:i' }}</span>{% else %}<span class="text-muted">Não informada</span>{% endif %}</td><td>{% if item.data_devolucao %}{{ item.data_devolucao|date:'d/m/Y H:i' }}{% else %}<span class="badge text-bg-warning">Em aberto</span>{% endif %}</td><td>{{ item.atualizado_por.get_full_name|default:item.atualizado_por.username|default:'Não informado' }}</td><td>{% if can_manage_movements %}<a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:editar_movimentacao' item.pk %}">Editar</a>{% else %}<span class="text-muted">Consulta</span>{% endif %}</td></tr>
+                  <tr><td>{{ item.nome }}</td><td>{{ item.matricula }}</td><td>{{ item.empresa_destino|default:'—' }}</td><td>{{ item.quantidade }}</td><td>{{ item.data_retirada|date:'d/m/Y H:i' }}</td><td>{% if item.data_prevista_devolucao %}<span class="badge {% if item.atrasado %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.data_prevista_devolucao|date:'d/m/Y H:i' }}</span>{% else %}<span class="text-muted">Não informada</span>{% endif %}</td><td>{% if item.data_devolucao %}{{ item.data_devolucao|date:'d/m/Y H:i' }}{% else %}<span class="badge text-bg-warning">Em aberto</span>{% endif %}</td><td>{{ item.atualizado_por.get_full_name|default:item.atualizado_por.username|default:'Não informado' }}</td><td><div class="d-flex gap-1">{% if can_manage_movements %}<a class="btn btn-sm btn-outline-primary" href="{% url 'estoque:editar_movimentacao' item.pk %}">Editar</a>{% endif %}{% if can_manage_movements or item.criado_por_id == request.user.id %}<a class="btn btn-sm btn-outline-danger" href="{% url 'estoque:excluir_movimentacao' item.pk %}">Excluir</a>{% endif %}</div>{% if not can_manage_movements and item.criado_por_id != request.user.id %}<span class="text-muted">Consulta</span>{% endif %}</td></tr>
                   {% empty %}<tr><td colspan="9" class="text-center text-muted">Nenhuma retirada registrada.</td></tr>{% endfor %}
                 </tbody>
               </table>

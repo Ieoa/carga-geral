@@ -3,6 +3,7 @@ import re
 from django import forms
 from django.contrib.auth.models import User
 from django.db.models import Sum
+from django.forms import BaseFormSet, formset_factory
 
 from historico.uploads import validate_image_upload, validate_pdf_upload
 
@@ -213,6 +214,122 @@ class CertificacaoEdicaoForm(CertificacaoForm):
 
 class CertificacaoRenovacaoForm(CertificacaoForm):
     pass
+
+
+class MovimentacaoLoteForm(forms.Form):
+    """Dados compartilhados por todos os materiais de uma retirada."""
+
+    nome = forms.CharField(
+        label="Nome",
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    matricula = forms.CharField(
+        label="Matrícula",
+        max_length=30,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    empresa_destino = forms.CharField(
+        label="Empresa ou destino",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Empresa, setor ou local de destino",
+            }
+        ),
+    )
+    data_retirada = forms.DateTimeField(
+        label="Data e hora da retirada",
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(
+            attrs={"class": "form-control", "type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+    )
+    data_prevista_devolucao = forms.DateTimeField(
+        label="Previsão de devolução",
+        required=False,
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(
+            attrs={"class": "form-control", "type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+    )
+
+    def clean_nome(self):
+        return " ".join(self.cleaned_data["nome"].split())
+
+    def clean_matricula(self):
+        matricula = self.cleaned_data["matricula"].strip()
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", matricula):
+            raise forms.ValidationError(
+                "Use apenas letras, números, ponto, hífen ou sublinhado."
+            )
+        return matricula
+
+    def clean_empresa_destino(self):
+        return " ".join(self.cleaned_data.get("empresa_destino", "").split())
+
+    def clean(self):
+        cleaned_data = super().clean()
+        retirada = cleaned_data.get("data_retirada")
+        prevista = cleaned_data.get("data_prevista_devolucao")
+        if retirada and prevista and prevista < retirada:
+            self.add_error(
+                "data_prevista_devolucao",
+                "A previsão de devolução não pode ser anterior à retirada.",
+            )
+        return cleaned_data
+
+
+class MovimentacaoItemForm(forms.Form):
+    equipamento = forms.ModelChoiceField(
+        label="Material",
+        queryset=Equipamento.objects.all().order_by("equipamento", "identificador"),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    quantidade = forms.IntegerField(
+        label="Quantidade",
+        min_value=1,
+        initial=1,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+    )
+
+
+class BaseMovimentacaoItemFormSet(BaseFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+
+        equipamentos = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+            equipamento = form.cleaned_data.get("equipamento")
+            if equipamento is None:
+                continue
+            if equipamento.pk in equipamentos:
+                form.add_error(
+                    "equipamento",
+                    "Este material já foi adicionado à retirada.",
+                )
+            equipamentos.add(equipamento.pk)
+
+
+MovimentacaoItemFormSet = formset_factory(
+    MovimentacaoItemForm,
+    formset=BaseMovimentacaoItemFormSet,
+    extra=0,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+    max_num=50,
+    validate_max=True,
+    absolute_max=100,
+)
 
 
 class MovimentacaoMaterialForm(forms.ModelForm):

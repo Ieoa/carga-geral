@@ -10,7 +10,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from historico.models import UserAccess
+from historico.models import AuditLog, UserAccess
 
 from .forms import CertificacaoForm
 from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
@@ -117,7 +117,8 @@ class EquipmentAndLoanPermissionTests(TestCase):
         self.owner = User.objects.create_user("dono_material", password="senha")
         self.other = User.objects.create_user("outro_material", password="senha")
         self.manager = User.objects.create_user("gestor_material", password="senha")
-        for user in (self.owner, self.other, self.manager):
+        self.admin = User.objects.create_superuser("admin_material", password="senha")
+        for user in (self.owner, self.other, self.manager, self.admin):
             UserAccess.objects.create(user=user)
         Colaborador.objects.create(
             user=self.owner, matricula="dono_material", nome="Dono Material", area="MAT", cargo="AUX"
@@ -153,6 +154,37 @@ class EquipmentAndLoanPermissionTests(TestCase):
             "quantidade": 2,
             "localizacao": "Galpão B",
         }
+
+    def criar_equipamento(self, identificador, *, quantidade=5):
+        return Equipamento.objects.create(
+            equipamento=f"Material {identificador}",
+            identificador=identificador,
+            tipo_equipamento="MANUAL",
+            quantidade=quantidade,
+            localizacao="ARMAZEM",
+            criado_por=self.owner,
+        )
+
+    def lote_payload(self, itens, **cabecalho):
+        retirada = timezone.localtime().replace(second=0, microsecond=0)
+        payload = {
+            "nome": "Maria Operadora",
+            "matricula": "MAT-100",
+            "empresa_destino": "Empresa Parceira",
+            "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
+            "data_prevista_devolucao": (retirada + timedelta(days=7)).strftime(
+                "%Y-%m-%dT%H:%M"
+            ),
+            "itens-TOTAL_FORMS": str(len(itens)),
+            "itens-INITIAL_FORMS": "0",
+            "itens-MIN_NUM_FORMS": "1",
+            "itens-MAX_NUM_FORMS": "50",
+        }
+        payload.update(cabecalho)
+        for indice, (equipamento, quantidade) in enumerate(itens):
+            payload[f"itens-{indice}-equipamento"] = equipamento.pk
+            payload[f"itens-{indice}-quantidade"] = quantidade
+        return payload
 
     def test_all_users_can_view_but_employee_only_edits_own_material(self):
         other_client = Client()
@@ -276,38 +308,23 @@ class EquipmentAndLoanPermissionTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Informe uma capacidade mínima válida")
 
-    def test_only_management_can_create_edit_and_return_loans(self):
-        create_url = reverse(
-            "estoque:cadastrar_movimentacao_equipamento", args=[self.equipamento.pk]
-        )
+    def test_employee_can_create_and_management_can_return_loans(self):
+        create_url = reverse("estoque:cadastrar_movimentacao")
         retirada = timezone.localtime().replace(second=0, microsecond=0)
         previsao = retirada + timedelta(days=7)
-        payload = {
-            "equipamento": self.equipamento.pk,
-            "nome": "Maria Operadora",
-            "matricula": "MAT-100",
-            "empresa_destino": "Empresa Parceira",
-            "quantidade": 1,
-            "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
-            "data_prevista_devolucao": previsao.strftime("%Y-%m-%dT%H:%M"),
-            "data_devolucao": "",
-        }
+        payload = self.lote_payload(
+            [(self.equipamento, 1)],
+            data_retirada=retirada.strftime("%Y-%m-%dT%H:%M"),
+            data_prevista_devolucao=previsao.strftime("%Y-%m-%dT%H:%M"),
+        )
 
         self.client.force_login(self.owner)
         self.assertRedirects(
             self.client.post(create_url, payload), reverse("estoque:listar_movimentacoes")
         )
-        self.assertFalse(MovimentacaoMaterial.objects.exists())
-
-        self.client.force_login(self.manager)
-        response = self.client.post(create_url, payload)
-        self.assertRedirects(
-            response,
-            reverse("estoque:detalhe_equipamento", args=[self.equipamento.pk]),
-        )
         movimentacao = MovimentacaoMaterial.objects.get()
-        self.assertEqual(movimentacao.criado_por, self.manager)
-        self.assertEqual(movimentacao.atualizado_por, self.manager)
+        self.assertEqual(movimentacao.criado_por, self.owner)
+        self.assertEqual(movimentacao.atualizado_por, self.owner)
         self.assertEqual(movimentacao.empresa_destino, "Empresa Parceira")
         self.assertEqual(
             timezone.localtime(movimentacao.data_prevista_devolucao), previsao
@@ -316,6 +333,7 @@ class EquipmentAndLoanPermissionTests(TestCase):
         self.assertContains(list_response, "Empresa Parceira")
         self.assertContains(list_response, previsao.strftime("%d/%m/%Y %H:%M"))
 
+        self.client.force_login(self.manager)
         return_url = reverse("estoque:devolver_movimentacao", args=[movimentacao.pk])
         self.client.post(return_url)
         movimentacao.refresh_from_db()
@@ -326,22 +344,16 @@ class EquipmentAndLoanPermissionTests(TestCase):
         self.client.force_login(self.manager)
         retirada = timezone.localtime().replace(second=0, microsecond=0)
         response = self.client.post(
-            reverse(
-                "estoque:cadastrar_movimentacao_equipamento",
-                args=[self.equipamento.pk],
+            reverse("estoque:cadastrar_movimentacao"),
+            self.lote_payload(
+                [(self.equipamento, 1)],
+                nome="Pessoa de teste",
+                matricula="MAT-ANTECIPADA",
+                data_retirada=retirada.strftime("%Y-%m-%dT%H:%M"),
+                data_prevista_devolucao=(retirada - timedelta(hours=1)).strftime(
+                    "%Y-%m-%dT%H:%M"
+                ),
             ),
-            {
-                "equipamento": self.equipamento.pk,
-                "nome": "Pessoa de teste",
-                "matricula": "MAT-ANTECIPADA",
-                "empresa_destino": "Empresa Parceira",
-                "quantidade": 1,
-                "data_retirada": retirada.strftime("%Y-%m-%dT%H:%M"),
-                "data_prevista_devolucao": (
-                    retirada - timedelta(hours=1)
-                ).strftime("%Y-%m-%dT%H:%M"),
-                "data_devolucao": "",
-            },
         )
 
         self.assertEqual(response.status_code, 200)
@@ -362,23 +374,166 @@ class EquipmentAndLoanPermissionTests(TestCase):
         )
         self.client.force_login(self.manager)
         response = self.client.post(
-            reverse(
-                "estoque:cadastrar_movimentacao_equipamento",
-                args=[self.equipamento.pk],
+            reverse("estoque:cadastrar_movimentacao"),
+            self.lote_payload(
+                [(self.equipamento, 1)],
+                nome="Segundo colaborador",
+                matricula="MAT-002",
+                data_retirada=timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
+                data_prevista_devolucao="",
             ),
-            {
-                "equipamento": self.equipamento.pk,
-                "nome": "Segundo colaborador",
-                "matricula": "MAT-002",
-                "quantidade": 1,
-                "data_retirada": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
-                "data_devolucao": "",
-            },
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Há somente 0 unidade(s) disponível(is)")
         self.assertEqual(MovimentacaoMaterial.objects.count(), 1)
+
+    def test_employee_creates_batch_with_different_quantities_and_audit(self):
+        segundo = self.criar_equipamento("MAN-200", quantidade=5)
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("estoque:cadastrar_movimentacao"),
+            self.lote_payload([(self.equipamento, 1), (segundo, 3)]),
+        )
+
+        self.assertRedirects(response, reverse("estoque:listar_movimentacoes"))
+        movimentacoes = list(
+            MovimentacaoMaterial.objects.order_by("equipamento_id")
+        )
+        self.assertEqual(len(movimentacoes), 2)
+        self.assertEqual(
+            {(item.equipamento_id, item.quantidade) for item in movimentacoes},
+            {(self.equipamento.pk, 1), (segundo.pk, 3)},
+        )
+        for movimentacao in movimentacoes:
+            with self.subTest(movimentacao=movimentacao.pk):
+                self.assertEqual(movimentacao.nome, "Maria Operadora")
+                self.assertEqual(movimentacao.matricula, "MAT-100")
+                self.assertEqual(movimentacao.empresa_destino, "Empresa Parceira")
+                self.assertEqual(movimentacao.criado_por, self.owner)
+                self.assertEqual(movimentacao.atualizado_por, self.owner)
+
+        auditorias = AuditLog.objects.filter(
+            user=self.owner,
+            action="create",
+            app_label="estoque",
+            model_name="movimentacaomaterial",
+        )
+        self.assertEqual(auditorias.count(), 2)
+        self.assertSetEqual(
+            set(auditorias.values_list("object_pk", flat=True)),
+            {str(item.pk) for item in movimentacoes},
+        )
+
+    def test_batch_rolls_back_every_item_when_one_has_insufficient_stock(self):
+        sem_estoque = self.criar_equipamento("GAN-SEM", quantidade=1)
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("estoque:cadastrar_movimentacao"),
+            self.lote_payload([(self.equipamento, 1), (sem_estoque, 2)]),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Há somente 1 unidade(s) disponível(is)")
+        self.assertFalse(MovimentacaoMaterial.objects.exists())
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action="create",
+                app_label="estoque",
+                model_name="movimentacaomaterial",
+            ).exists()
+        )
+
+    def test_batch_rejects_repeated_equipment(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("estoque:cadastrar_movimentacao"),
+            self.lote_payload([(self.equipamento, 1), (self.equipamento, 1)]),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Este material já foi adicionado à retirada.")
+        self.assertFalse(MovimentacaoMaterial.objects.exists())
+
+    def test_creator_get_only_confirms_and_post_deletes_loan(self):
+        movimentacao = MovimentacaoMaterial.objects.create(
+            equipamento=self.equipamento,
+            nome="Empréstimo encerrado",
+            matricula="MAT-EXCLUIR",
+            quantidade=1,
+            data_devolucao=timezone.now(),
+            criado_por=self.owner,
+            atualizado_por=self.manager,
+        )
+        delete_url = reverse("estoque:excluir_movimentacao", args=[movimentacao.pk])
+        self.client.force_login(self.owner)
+
+        get_response = self.client.get(delete_url)
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertContains(get_response, "Tem certeza")
+        self.assertTrue(MovimentacaoMaterial.objects.filter(pk=movimentacao.pk).exists())
+
+        post_response = self.client.post(delete_url)
+
+        self.assertRedirects(post_response, reverse("estoque:listar_movimentacoes"))
+        self.assertFalse(MovimentacaoMaterial.objects.filter(pk=movimentacao.pk).exists())
+        self.assertTrue(
+            AuditLog.objects.filter(
+                user=self.owner,
+                action="delete",
+                app_label="estoque",
+                model_name="movimentacaomaterial",
+                object_pk=str(movimentacao.pk),
+            ).exists()
+        )
+
+    def test_other_employee_cannot_delete_loan(self):
+        movimentacao = MovimentacaoMaterial.objects.create(
+            equipamento=self.equipamento,
+            nome="Empréstimo de outro autor",
+            matricula="MAT-OUTRO",
+            quantidade=1,
+            data_devolucao=timezone.now(),
+            criado_por=self.owner,
+            atualizado_por=self.owner,
+        )
+        delete_url = reverse("estoque:excluir_movimentacao", args=[movimentacao.pk])
+        self.client.force_login(self.other)
+
+        for method in (self.client.get, self.client.post):
+            with self.subTest(method=method.__name__):
+                response = method(delete_url)
+                self.assertRedirects(response, reverse("estoque:listar_movimentacoes"))
+                self.assertTrue(
+                    MovimentacaoMaterial.objects.filter(pk=movimentacao.pk).exists()
+                )
+
+    def test_manager_and_admin_can_delete_any_loan(self):
+        for usuario in (self.manager, self.admin):
+            movimentacao = MovimentacaoMaterial.objects.create(
+                equipamento=self.equipamento,
+                nome="Empréstimo gerenciado",
+                matricula=f"MAT-{usuario.username}",
+                quantidade=1,
+                data_devolucao=timezone.now(),
+                criado_por=self.owner,
+                atualizado_por=self.owner,
+            )
+            with self.subTest(usuario=usuario.username):
+                self.client.force_login(usuario)
+                response = self.client.post(
+                    reverse("estoque:excluir_movimentacao", args=[movimentacao.pk])
+                )
+                self.assertRedirects(
+                    response, reverse("estoque:listar_movimentacoes")
+                )
+                self.assertFalse(
+                    MovimentacaoMaterial.objects.filter(pk=movimentacao.pk).exists()
+                )
 
     def test_qr_destination_redirects_to_latest_active_pdf(self):
         Certificacao.objects.create(

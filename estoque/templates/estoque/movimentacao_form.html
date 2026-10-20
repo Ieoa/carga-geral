@@ -14,21 +14,78 @@
 
   <form method="post" class="card">
     {% csrf_token %}
-    {% for hidden in form.hidden_fields %}{{ hidden }}{% for error in hidden.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% endfor %}
     <div class="card-body">
+      {% for hidden in form.hidden_fields %}{{ hidden }}{% for error in hidden.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% endfor %}
       <div class="row g-3">
         {% for field in form.visible_fields %}
-        <div class="col-md-6">
-          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
-          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-        </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
         {% endfor %}
       </div>
       {% for error in form.non_field_errors %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endfor %}
+
+      {% if modo != 'editar' %}
+      <hr class="my-4">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+          <h2 class="h5 mb-1">Materiais da retirada</h2>
+          <p class="text-muted small mb-0">Adicione todos os materiais e informe a quantidade de cada um.</p>
+        </div>
+        <button class="btn btn-outline-primary" id="adicionar-material" type="button">
+          <i class="bi bi-plus-lg me-1"></i>Adicionar material
+        </button>
+      </div>
+
+      {{ item_formset.management_form }}
+      {% for error in item_formset.non_form_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>Material</th><th style="width: 180px;">Quantidade</th><th class="text-center" style="width: 90px;">Remover</th></tr>
+          </thead>
+          <tbody id="materiais-retirada">
+            {% for item in item_formset %}
+            <tr class="material-row">
+              <td>
+                {% for hidden in item.hidden_fields %}{{ hidden }}{% endfor %}
+                {{ item.equipamento }}
+                {% for error in item.equipamento.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </td>
+              <td>
+                {{ item.quantidade }}
+                {% for error in item.quantidade.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </td>
+              <td class="text-center">
+                <span class="d-none">{{ item.DELETE }}</span>
+                <button class="btn btn-sm btn-outline-danger remover-material" type="button" aria-label="Remover material"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <template id="modelo-material">
+        <tr class="material-row">
+          <td>{{ item_formset.empty_form.equipamento }}</td>
+          <td>{{ item_formset.empty_form.quantidade }}</td>
+          <td class="text-center">
+            <span class="d-none">{{ item_formset.empty_form.DELETE }}</span>
+            <button class="btn btn-sm btn-outline-danger remover-material" type="button" aria-label="Remover material"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+      </template>
+      {% endif %}
+
       <div class="alert alert-info mt-3 mb-0">
-        Informe a empresa ou o destino e a previsão de retorno. Deixe a devolução
-        em branco enquanto o material ainda estiver cedido.
+        {% if modo == 'editar' %}
+          Informe a empresa ou o destino e a previsão de retorno. Deixe a devolução em branco enquanto o material ainda estiver cedido.
+        {% else %}
+          Todos os materiais desta retirada ficarão vinculados à mesma pessoa, matrícula, destino e datas.
+        {% endif %}
       </div>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
@@ -37,4 +94,37 @@
     </div>
   </form>
 </div>
+
+{% if modo != 'editar' %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const totalForms = document.getElementById('id_itens-TOTAL_FORMS');
+    const container = document.getElementById('materiais-retirada');
+    const template = document.getElementById('modelo-material');
+    const addButton = document.getElementById('adicionar-material');
+
+    function bindRemove(row) {
+      const button = row.querySelector('.remover-material');
+      button.addEventListener('click', function () {
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        if (deleteInput) {
+          deleteInput.checked = true;
+          row.classList.add('d-none');
+        }
+      });
+    }
+
+    container.querySelectorAll('.material-row').forEach(bindRemove);
+    addButton.addEventListener('click', function () {
+      const index = Number(totalForms.value);
+      const wrapper = document.createElement('tbody');
+      wrapper.innerHTML = template.innerHTML.replace(/__prefix__/g, String(index)).trim();
+      const row = wrapper.firstElementChild;
+      container.appendChild(row);
+      totalForms.value = index + 1;
+      bindRemove(row);
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

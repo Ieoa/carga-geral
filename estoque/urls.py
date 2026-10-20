@@ -84,6 +84,11 @@ urlpatterns = [
         name="devolver_movimentacao",
     ),
     path(
+        "dashboard/emprestimos/<int:pk>/excluir/",
+        views.excluir_movimentacao,
+        name="excluir_movimentacao",
+    ),
+    path(
         "dashboard/equipamentos/estoque/",
         views.estoque_resumido,
         name="estoque_resumido",

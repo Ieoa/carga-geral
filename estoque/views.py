@@ -42,6 +42,8 @@ from .forms import (
     CertificacaoRenovacaoForm,
     ColaboradorForm,
     EquipamentoForm,
+    MovimentacaoItemFormSet,
+    MovimentacaoLoteForm,
     MovimentacaoMaterialForm,
 )
 from .models import Certificacao, Colaborador, Equipamento, MovimentacaoMaterial
@@ -389,7 +391,7 @@ def detalhe_equipamento(request, pk):
             "today": today,
             "certificacao_principal": certificacao_principal,
             "movimentacoes": equipamento.movimentacoes.select_related(
-                "atualizado_por"
+                "criado_por", "atualizado_por"
             )[:10],
             "can_edit": can_edit_object(request.user, equipamento),
             "can_delete": can_delete_records(request.user),
@@ -506,6 +508,96 @@ def _salvar_movimentacao(form, user):
         return movimentacao
 
 
+def _salvar_movimentacoes_lote(form, item_formset, user):
+    """Valida e grava todos os materiais da retirada de forma atômica."""
+    item_forms = [
+        item_form
+        for item_form in item_formset.forms
+        if item_form.cleaned_data and not item_form.cleaned_data.get("DELETE")
+    ]
+    equipamento_ids = sorted(
+        item_form.cleaned_data["equipamento"].pk for item_form in item_forms
+    )
+
+    with transaction.atomic():
+        equipamentos = {
+            equipamento.pk: equipamento
+            for equipamento in Equipamento.objects.select_for_update()
+            .filter(pk__in=equipamento_ids)
+            .order_by("pk")
+        }
+        emprestados = {
+            item["equipamento_id"]: item["total"]
+            for item in MovimentacaoMaterial.objects.filter(
+                equipamento_id__in=equipamento_ids,
+                data_devolucao__isnull=True,
+            )
+            .values("equipamento_id")
+            .annotate(total=Sum("quantidade"))
+        }
+
+        possui_erro = False
+        for item_form in item_forms:
+            equipamento_id = item_form.cleaned_data["equipamento"].pk
+            equipamento = equipamentos.get(equipamento_id)
+            if equipamento is None:
+                item_form.add_error(
+                    "equipamento", "Este material não está mais disponível."
+                )
+                possui_erro = True
+                continue
+            quantidade = item_form.cleaned_data["quantidade"]
+            disponiveis = max(
+                equipamento.quantidade - emprestados.get(equipamento_id, 0), 0
+            )
+            if quantidade > disponiveis:
+                item_form.add_error(
+                    "quantidade",
+                    f"Há somente {disponiveis} unidade(s) disponível(is) para retirada.",
+                )
+                possui_erro = True
+
+        if possui_erro:
+            return []
+
+        dados = form.cleaned_data
+        movimentacoes = []
+        for item_form in item_forms:
+            movimentacao = MovimentacaoMaterial.objects.create(
+                equipamento=equipamentos[
+                    item_form.cleaned_data["equipamento"].pk
+                ],
+                nome=dados["nome"],
+                matricula=dados["matricula"],
+                empresa_destino=dados["empresa_destino"],
+                quantidade=item_form.cleaned_data["quantidade"],
+                data_retirada=dados["data_retirada"],
+                data_prevista_devolucao=dados["data_prevista_devolucao"],
+                criado_por=user,
+                atualizado_por=user,
+            )
+            log_action(user, movimentacao, "create", snapshot(movimentacao))
+            movimentacoes.append(movimentacao)
+        return movimentacoes
+
+
+def _post_movimentacao_compativel(request, equipamento_pk):
+    """Aceita também o envio unitário usado por versões anteriores."""
+    if request.method != "POST" or "itens-TOTAL_FORMS" in request.POST:
+        return request.POST or None
+
+    data = request.POST.copy()
+    data["itens-TOTAL_FORMS"] = "1"
+    data["itens-INITIAL_FORMS"] = "0"
+    data["itens-MIN_NUM_FORMS"] = "1"
+    data["itens-MAX_NUM_FORMS"] = "50"
+    data["itens-0-equipamento"] = request.POST.get("equipamento") or str(
+        equipamento_pk or ""
+    )
+    data["itens-0-quantidade"] = request.POST.get("quantidade", "1")
+    return data
+
+
 @login_required
 def listar_movimentacoes(request):
     busca = request.GET.get("q", "").strip()
@@ -547,33 +639,46 @@ def listar_movimentacoes(request):
 
 @login_required
 def cadastrar_movimentacao(request, equipamento_pk=None):
-    if not is_manager(request.user):
-        messages.error(
-            request, "Somente administradores e gestores podem registrar empréstimos."
-        )
-        return redirect("estoque:listar_movimentacoes")
     equipamento = (
         get_object_or_404(Equipamento, pk=equipamento_pk)
         if equipamento_pk is not None
         else None
     )
-    form = MovimentacaoMaterialForm(
-        request.POST or None,
-        equipamento=equipamento,
+    post_data = _post_movimentacao_compativel(request, equipamento_pk)
+    form = MovimentacaoLoteForm(
+        post_data,
         initial={"data_retirada": timezone.localtime().strftime("%Y-%m-%dT%H:%M")},
     )
-    if request.method == "POST" and form.is_valid():
-        movimentacao = _salvar_movimentacao(form, request.user)
-        if movimentacao:
-            log_action(request.user, movimentacao, "create", snapshot(movimentacao))
-            messages.success(request, "Retirada registrada com sucesso.")
-            return redirect(
-                "estoque:detalhe_equipamento", pk=movimentacao.equipamento_id
+    item_formset = MovimentacaoItemFormSet(
+        post_data,
+        prefix="itens",
+        initial=[{"equipamento": equipamento, "quantidade": 1}]
+        if equipamento is not None
+        else None,
+    )
+    if request.method == "POST" and form.is_valid() and item_formset.is_valid():
+        movimentacoes = _salvar_movimentacoes_lote(form, item_formset, request.user)
+        if movimentacoes:
+            quantidade = len(movimentacoes)
+            messages.success(
+                request,
+                f"{quantidade} retirada(s) registrada(s) com sucesso.",
             )
+            if equipamento is not None and quantidade == 1:
+                return redirect(
+                    "estoque:detalhe_equipamento",
+                    pk=movimentacoes[0].equipamento_id,
+                )
+            return redirect("estoque:listar_movimentacoes")
     return render(
         request,
         "estoque/movimentacao_form.html",
-        {"form": form, "equipamento": equipamento, "modo": "cadastrar"},
+        {
+            "form": form,
+            "item_formset": item_formset,
+            "equipamento": equipamento,
+            "modo": "cadastrar",
+        },
     )
 
 
@@ -623,6 +728,34 @@ def devolver_movimentacao(request, pk):
         )
         messages.success(request, "Devolução registrada com sucesso.")
     return redirect("estoque:listar_movimentacoes")
+
+
+@login_required
+def excluir_movimentacao(request, pk):
+    movimentacao = get_object_or_404(
+        MovimentacaoMaterial.objects.select_related("equipamento", "criado_por"),
+        pk=pk,
+    )
+    if not can_edit_object(request.user, movimentacao):
+        messages.error(
+            request,
+            "Você só pode excluir empréstimos registrados por você.",
+        )
+        return redirect("estoque:listar_movimentacoes")
+
+    if request.method == "POST":
+        before = snapshot(movimentacao)
+        with transaction.atomic():
+            log_action(request.user, movimentacao, "delete", before)
+            movimentacao.delete()
+        messages.success(request, "Empréstimo excluído com sucesso.")
+        return redirect("estoque:listar_movimentacoes")
+
+    return render(
+        request,
+        "estoque/movimentacao_confirmar_exclusao.html",
+        {"movimentacao": movimentacao},
+    )
 
 
 @login_required
